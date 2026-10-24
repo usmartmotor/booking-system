@@ -1,0 +1,2234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>店家管理後台｜eReady 汐止康寧店 預約系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- GitHub Pages + Google Apps Script 連線設定與橋接器 -->
+    <script src="config.js"></script>
+    <script src="static/js/gas-bridge.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8f6f2;
+            color: #2b2927;
+        }
+        .admin-nav-active {
+            background-color: #253e42;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(37, 62, 66, 0.25);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- ==========================================
+         LOGIN OVERLAY MODAL
+         ========================================== -->
+    <div id="loginOverlay" class="fixed inset-0 z-50 bg-[#253e42]/85 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-[#ece7df]">
+            <div class="text-center mb-6">
+                <div class="bg-white p-2 rounded-2xl inline-block mb-2">
+                    <img src="static/uploads/default_logo.png" alt="Logo" class="h-12 w-auto mx-auto object-contain">
+                </div>
+                <h1 class="text-xl font-bold text-[#253e42]">預約系統管理後台</h1>
+                <p class="text-xs text-slate-500 mt-1">預設管理員密碼：<code class="px-1.5 py-0.5 rounded bg-slate-100 text-[#253e42] font-bold">admin123</code>（登入後可修改）</p>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">管理員密碼</label>
+                    <input type="password" id="adminPasswordInput" value="admin123" required placeholder="請輸入後台密碼"
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-[#253e42]">
+                </div>
+                <div id="loginErrorText" class="hidden text-xs text-rose-600 font-semibold text-center"></div>
+                <button type="submit" class="w-full py-3 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white font-bold text-sm shadow-md transition">
+                    登入後台管理系統
+                </button>
+                <div class="text-center pt-2">
+                    <a href="index.html" class="text-xs text-slate-500 hover:text-[#253e42]">
+                        <i class="fa-solid fa-arrow-left mr-1"></i> 返回客戶預約前台
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         TOP BAR
+         ========================================== -->
+    <header class="bg-[#253e42] text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-white px-2.5 py-1 rounded-xl flex items-center justify-center">
+                    <img src="static/uploads/default_logo.png" alt="Logo" class="h-7 w-auto object-contain">
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-base sm:text-lg">eReady 汐止康寧店</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-md bg-white/15 text-white/90 font-medium">後台管理中心</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <a href="index.html" target="_blank" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-up-right-from-square"></i> 預覽客戶前台
+                </a>
+                <button onclick="handleAdminLogout()" class="px-3 py-1.5 rounded-lg bg-black/20 hover:bg-black/35 text-white/90 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-right-from-bracket"></i> 登出
+                </button>
+            </div>
+        </div>
+
+        <!-- Navigation Bar (Scrollable on Mobile) -->
+        <div class="bg-[#1d3134] border-t border-white/10">
+            <div class="max-w-7xl mx-auto px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs sm:text-sm font-bold">
+                <button onclick="switchAdminTab('bookings')" id="adminTabBtn-bookings" class="admin-nav-active px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-regular fa-calendar-check"></i> 預約訂單管理
+                </button>
+                <button onclick="switchAdminTab('schedule')" id="adminTabBtn-schedule" class="text-slate-200 hover:bg-white/10 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-regular fa-clock"></i> 營業時間 & 預約規則
+                </button>
+                <button onclick="switchAdminTab('holidays')" id="adminTabBtn-holidays" class="text-slate-200 hover:bg-white/10 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-solid fa-calendar-xmark"></i> 休假日設定
+                </button>
+                <button onclick="switchAdminTab('services')" id="adminTabBtn-services" class="text-slate-200 hover:bg-white/10 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-solid fa-motorcycle"></i> 服務項目(含圖片) & 試乘車種
+                </button>
+                <button onclick="switchAdminTab('notifications')" id="adminTabBtn-notifications" class="text-slate-200 hover:bg-white/10 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-brands fa-line"></i> LINE 機器人 & Email 通知
+                </button>
+                <button onclick="switchAdminTab('store')" id="adminTabBtn-store" class="text-slate-200 hover:bg-white/10 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-regular fa-image"></i> 刊頭圖片 & 店家資料
+                </button>
+                <button onclick="switchAdminTab('logs')" id="adminTabBtn-logs" class="text-slate-200 hover:bg-white/10 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition">
+                    <i class="fa-solid fa-shield-halved text-amber-300"></i> 系統執行 Log & 自動清理
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Toast Notification Banner -->
+    <div id="adminToast" class="fixed bottom-5 right-5 z-50 hidden px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-bold shadow-xl border border-slate-700 flex items-center gap-2">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="adminToastText">已儲存</span>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6 space-y-6">
+
+        <!-- ==========================================
+             ADMIN TAB 1: 預約訂單管理 (Bookings)
+             ========================================== -->
+        <section id="adminSection-bookings" class="space-y-5">
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">今日預約筆數</div>
+                        <div id="statTodayCount" class="text-2xl font-extrabold text-slate-900 mt-1">0</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-calendar-day"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">待執行有效預約</div>
+                        <div id="statUpcomingCount" class="text-2xl font-extrabold text-emerald-600 mt-1">0</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">維修保養預約</div>
+                        <div id="statMaintCount" class="text-2xl font-extrabold text-sky-700 mt-1">0</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-screwdriver-wrench"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">賞車試乘預約</div>
+                        <div id="statTestRideCount" class="text-2xl font-extrabold text-teal-700 mt-1">0</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-motorcycle"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex flex-wrap items-end gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">預約日期</label>
+                    <input type="date" id="filterBookingDate" onchange="loadAdminBookings()"
+                        class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">服務類型</label>
+                    <select id="filterFormType" onchange="loadAdminBookings()" class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                        <option value="">全部服務項目</option>
+                        <option value="maintenance">1. 維修保養</option>
+                        <option value="test_ride">2. 賞車試乘</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">預約狀態</label>
+                    <select id="filterStatus" onchange="loadAdminBookings()" class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                        <option value="">全部狀態</option>
+                        <option value="confirmed">預約成功 (待到店)</option>
+                        <option value="completed">已完成</option>
+                        <option value="cancelled">已取消</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[180px]">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">關鍵字搜尋 (姓名/電話/車牌/單號/試乘車種)</label>
+                    <input type="text" id="filterKeyword" oninput="loadAdminBookings()" placeholder="輸入姓名、電話、車牌或單號..."
+                        class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearBookingFilters()" class="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-600">
+                        顯示全部
+                    </button>
+                    <button onclick="loadAdminBookings()" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold">
+                        <i class="fa-solid fa-rotate mr-1"></i> 重新整理
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bookings List -->
+            <div id="adminBookingsContainer" class="space-y-3">
+                <!-- JS 動態渲染預約訂單卡片 -->
+            </div>
+        </section>
+
+        <!-- ==========================================
+             ADMIN TAB 2: 營業時間、可預約時間、最晚幾小時前預約設定
+             ========================================== -->
+        <section id="adminSection-schedule" class="hidden space-y-6">
+            <!-- 預約規則設定 (最晚幾小時前可預約、單一時段預約上限、可預約時間) -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-5">
+                <div class="border-b border-slate-100 pb-3">
+                    <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-sky-600"></i> 可預約時間與預約限制規則
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">可隨時調整「最晚幾個小時前可預約」、「單一時段預約上限（預設 1 名）」及「可預約時段產生方式」</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="p-4 rounded-xl bg-sky-50/70 border border-sky-200">
+                        <label class="block text-sm font-extrabold text-slate-800 mb-1">
+                            ⏳ 最晚幾個小時前可預約
+                        </label>
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="number" id="ruleMinLeadHours" min="0" max="720" step="0.5"
+                                class="w-28 px-3 py-2 rounded-xl border border-sky-300 font-extrabold text-base text-sky-900 bg-white">
+                            <span class="text-sm font-bold text-slate-700">小時前</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1.5">例：設為 2 代表現在 14:00 時，客戶只能預約 16:00 (含) 之後的時段。</p>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                        <label class="block text-sm font-extrabold text-slate-800 mb-1">
+                            👥 單一時段預約上限
+                        </label>
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="number" id="ruleMaxPerSlot" min="1" max="50" step="1"
+                                class="w-28 px-3 py-2 rounded-xl border border-emerald-300 font-extrabold text-base text-emerald-900 bg-white">
+                            <span class="text-sm font-bold text-slate-700">名 / 每個時段</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1.5">預設為 1 名。當該時段預約達上限時，前台將自動顯示「已額滿」。</p>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                        <label class="block text-sm font-extrabold text-slate-800 mb-1">
+                            📅 開放未來幾天內預約
+                        </label>
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="number" id="ruleMaxAdvanceDays" min="7" max="365" step="1"
+                                class="w-28 px-3 py-2 rounded-xl border border-slate-300 font-extrabold text-base text-slate-900 bg-white">
+                            <span class="text-sm font-bold text-slate-700">天內</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1.5">控制前台月曆最多允許客戶往後預約的天數範圍。</p>
+                    </div>
+                </div>
+
+                <!-- 可預約時段設定模式 -->
+                <div class="pt-3 border-t border-slate-100 space-y-4">
+                    <label class="block text-sm font-extrabold text-slate-800">🕒 可預約時間設定模式</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                            <input type="radio" name="slotModeRadio" value="interval" onchange="toggleSlotModeUI()" class="mt-1">
+                            <div>
+                                <div class="text-sm font-bold text-slate-800">模式 A：依營業時間與固定間隔自動產生</div>
+                                <div class="text-xs text-slate-500 mt-0.5">根據每日營業起訖時間（如 10:00~21:00），每隔固定分鐘自動產生可預約時段</div>
+                            </div>
+                        </label>
+                        <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                            <input type="radio" name="slotModeRadio" value="custom" onchange="toggleSlotModeUI()" class="mt-1">
+                            <div>
+                                <div class="text-sm font-bold text-slate-800">模式 B：自訂每日固定可預約時間點</div>
+                                <div class="text-xs text-slate-500 mt-0.5">自由指定開放哪些時間點（例如只開放 10:00, 11:00, 14:00, 16:00, 19:00）</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div id="slotModeIntervalBox" class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center gap-3">
+                        <span class="text-sm font-bold text-slate-700">時段間隔設定：</span>
+                        <select id="ruleSlotInterval" class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold bg-white">
+                            <option value="30">每 30 分鐘一個時段 (10:00, 10:30, 11:00...)</option>
+                            <option value="60">每 60 分鐘一個時段 (10:00, 11:00, 12:00...)</option>
+                            <option value="90">每 90 分鐘一個時段</option>
+                            <option value="120">每 120 分鐘 (2小時) 一個時段</option>
+                        </select>
+                    </div>
+
+                    <div id="slotModeCustomBox" class="hidden p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                        <label class="block text-sm font-bold text-slate-700">自訂可預約時間點（以逗號分隔，24小時制 HH:MM）</label>
+                        <input type="text" id="ruleCustomSlotsInput" placeholder="10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00, 19:00, 20:00"
+                            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-mono bg-white">
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="saveBookingRules()" class="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存預約規則設定
+                    </button>
+                </div>
+            </div>
+
+            <!-- 每週營業時間設定 -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-regular fa-clock text-sky-600"></i> 每週營業時間與公休日設定
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">可設定週一至週日是否營業、每日營業起訖時間及中間休息時段（如午休時間不開放預約）</p>
+                    </div>
+                    <button onclick="saveBusinessHours()" class="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存營業時間
+                    </button>
+                </div>
+
+                <div id="businessHoursEditorList" class="space-y-2.5">
+                    <!-- JS 渲染週一~週日營業時間設定列 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             ADMIN TAB 3: 休假日設定 (Holidays)
+             ========================================== -->
+        <section id="adminSection-holidays" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 新增特定休假日 -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-4 h-fit">
+                    <h2 class="text-base font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <i class="fa-solid fa-calendar-plus text-rose-500"></i> 新增特定休假日 / 店休時段
+                    </h2>
+
+                    <form onsubmit="handleAddHoliday(event)" class="space-y-3.5 text-sm">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">開始日期 *</label>
+                            <input type="date" id="holStartDate" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">結束日期 (單日店休請填同日) *</label>
+                            <input type="date" id="holEndDate" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">休假原因 / 顯示名稱 *</label>
+                            <input type="text" id="holReason" required placeholder="例：國定假日、店休、員工旅遊" value="特定店休"
+                                class="w-full px-3 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="holIsFullDay" checked onchange="toggleHolidayPartialTime()" class="rounded text-sky-600">
+                                <span class="text-xs font-bold text-slate-700">全天休假不開放預約</span>
+                            </label>
+                        </div>
+                        <div id="holPartialTimeBox" class="hidden grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-500">暫停開始時間</label>
+                                <input type="time" id="holStartTime" value="12:00" class="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-500">暫停結束時間</label>
+                                <input type="time" id="holEndTime" value="18:00" class="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition">
+                            <i class="fa-solid fa-plus mr-1"></i> 新增休假日設定
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 已設定休假日清單 -->
+                <div class="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-4">
+                    <h2 class="text-base font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <i class="fa-solid fa-calendar-xmark text-sky-600"></i> 已設定之特定休假日清單
+                    </h2>
+                    <div id="holidaysListContainer" class="space-y-2.5">
+                        <!-- JS 動態渲染休假日清單 -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             ADMIN TAB 4: 服務項目 & 試乘車種管理
+             ========================================== -->
+        <section id="adminSection-services" class="hidden space-y-6">
+
+            <!-- 區塊 A：試乘車種管理 (預設 6 款車種，可上傳各車款圖片、新增/編輯/上下架/刪除) -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-motorcycle text-[#253e42]"></i> 賞車試乘 — 試乘車種與車款圖片管理
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">可為每一款試乘車種上傳專屬車款圖片、編輯名稱與品牌標籤，前台「賞車試乘」表單將即時顯示車款照片供客戶點選</p>
+                    </div>
+                </div>
+
+                <!-- 新增試乘車種表單 (含車款圖片上傳) -->
+                <form onsubmit="handleAddTestRideModel(event)" class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                    <div class="text-xs font-bold text-[#253e42]">➕ 新增試乘車種</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">試乘車種名稱 *</label>
+                            <input type="text" id="newModelName" required placeholder="例：eReady Run 76belt 或 SUZUKI SUI"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">品牌標籤 (選填)</label>
+                            <input type="text" id="newModelBrand" placeholder="例：eReady / SUZUKI"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">車款圖片 (可上傳圖片或貼上網址)</label>
+                            <div class="flex gap-1.5">
+                                <input type="text" id="newModelImageUrl" placeholder="選填，上傳後自動帶入"
+                                    class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                                <label class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1">
+                                    <i class="fa-solid fa-upload"></i> 上傳圖片
+                                    <input type="file" accept="image/*" class="hidden"
+                                        onchange="uploadImageToInput(this, 'newModelImageUrl', null, 'model_new')">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <input type="hidden" id="newModelSort" value="10">
+                            <button type="submit" class="w-full py-2 px-4 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white font-bold text-sm transition">
+                                <i class="fa-solid fa-plus mr-1"></i> 新增車種
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- 試乘車種列表 -->
+                <div id="adminModelsList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- JS 動態載入試乘車種編輯卡片 (含車款圖片預覽與上傳) -->
+                </div>
+            </div>
+
+            <!-- 區塊 B：服務項目管理 (1. 維修保養 / 2. 賞車試乘，含自定義圖片上傳) -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-images text-[#253e42]"></i> 服務項目與自定義圖片管理
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">可為每個服務項目上傳自定義圖片（或輸入圖片網址）、修改名稱、說明文字、預計耗時與啟用狀態</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="switchAdminTab('store')" class="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold">
+                            <i class="fa-regular fa-image mr-1"></i> 設定網站刊頭圖片
+                        </button>
+                        <button onclick="toggleNewServiceBox()" class="px-4 py-2 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold">
+                            <i class="fa-solid fa-plus mr-1"></i> 新增服務項目
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 新增服務項目摺疊表單 -->
+                <form id="newServiceBox" onsubmit="handleAddService(event)" class="hidden p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                    <div class="text-sm font-bold text-[#253e42]">新增服務項目</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">服務名稱 *</label>
+                            <input type="text" id="newSvcName" required placeholder="例：道路救援 / 專案改裝" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">適用表單欄位類型 *</label>
+                            <select id="newSvcFormType" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                                <option value="maintenance">維修保養表單 (含車牌/里程/車型/需求選擇)</option>
+                                <option value="test_ride">賞車試乘表單 (含試乘車種選單)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">預計時長 (分鐘)</label>
+                            <input type="number" id="newSvcDuration" value="60" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">服務項目圖片 (可點右側按鈕上傳圖片或貼上圖片網址)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="newSvcImageUrl" placeholder="static/uploads/service_maintenance.jpg" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                            <label class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1.5">
+                                <i class="fa-solid fa-upload"></i> 上傳圖片
+                                <input type="file" accept="image/*" class="hidden" onchange="uploadImageToInput(this, 'newSvcImageUrl', null, 'service')">
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">服務說明文字</label>
+                        <textarea id="newSvcDesc" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"></textarea>
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" onclick="toggleNewServiceBox()" class="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold">取消</button>
+                        <button type="submit" class="px-5 py-2 rounded-xl bg-[#253e42] text-white text-xs font-bold">儲存新增</button>
+                    </div>
+                </form>
+
+                <div id="adminServicesList" class="space-y-4">
+                    <!-- JS 動態載入服務項目編輯卡片 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             ADMIN TAB 5: LINE 機器人 & Email 雙軌通知設定
+             ========================================== -->
+        <section id="adminSection-notifications" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <!-- 左欄：LINE 官方帳號機器人 & LIFF 設定 -->
+                <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                    <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                                <i class="fa-brands fa-line text-xl text-[#06C755]"></i> LINE 官方帳號與員工群組機器人設定
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">支援「員工群組即時發布預約訊息」與「客戶官方 LINE 預約成功通知」</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3.5 text-sm">
+                        <div class="flex flex-col gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="cfgEnableLineStaff" class="rounded text-emerald-600">
+                                <span class="font-bold text-slate-800">啟用：客戶預約成功後，呼叫 LINE 機器人在【員工群組】發布預約訊息</span>
+                            </label>
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="cfgEnableLineCustomer" class="rounded text-emerald-600">
+                                <span class="font-bold text-slate-800">啟用：透過【官方 LINE (LIFF)】推播預約成功通知給客戶</span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">
+                                LINE Messaging API — Channel Access Token (長效權杖)
+                            </label>
+                            <input type="password" id="cfgLineToken" placeholder="請貼上 LINE Developers 的 Channel Access Token"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">
+                                員工群組 Group ID (或接收通知之 User ID，多個可以逗號分隔)
+                            </label>
+                            <input type="text" id="cfgLineStaffGroupId" placeholder="例：C1234567890abcdef... (將機器人拉進員工群組後可於下方自動捕捉)"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                        </div>
+
+                        <!-- 自動捕捉到的群組 ID 清單 -->
+                        <div class="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs space-y-1.5">
+                            <div class="font-bold text-emerald-900 flex items-center gap-1.5">
+                                <i class="fa-solid fa-satellite-dish"></i> Webhook 自動偵測到的員工群組 / ID 清單：
+                            </div>
+                            <p class="text-[11px] text-emerald-700">
+                                💡 將您的 LINE Webhook URL 設為 <code class="bg-white px-1.5 py-0.5 rounded border">/api/line/webhook</code> 並將機器人邀請進員工群組說話，群組 ID 會自動顯示於此：
+                            </p>
+                            <div id="detectedLineTargetsBox" class="space-y-1 pt-1">
+                                <!-- JS 渲染偵測到的群組 ID -->
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">
+                                LINE LIFF ID (選填，用於客戶從官方帳號點開時自動綁定 LINE 身分)
+                            </label>
+                            <input type="text" id="cfgLineLiffId" placeholder="例：2000123456-AbCdEfGh"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右欄：Email 自動寄信設定 (SMTP) -->
+                <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h2 class="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-envelope-open-text text-sky-600"></i> 客戶 Email 自動寄信設定 (SMTP)
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">雙軌制保底通知：客戶完成預約時，自動寄發精美 HTML 預約確認信至客戶信箱</p>
+                    </div>
+
+                    <div class="space-y-3.5 text-sm">
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="cfgEnableEmailCustomer" class="rounded text-sky-600">
+                                <span class="font-bold text-slate-800">啟用：客戶預約成功後自動寄發 Email 預約確認信</span>
+                            </label>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+                            <div class="font-bold flex items-center gap-1.5">
+                                <i class="fa-brands fa-google"></i> Google Apps Script 模式：免填 SMTP 密碼即可自動寄信！
+                            </div>
+                            <p class="text-[11px] text-emerald-800 leading-relaxed">
+                                當網站部署於 <strong>GitHub Pages ＋ Google Apps Script</strong> 時，系統會直接透過您授權的店家 Google 帳號 (<code class="bg-white px-1 rounded">MailApp</code>) 自動寄出 HTML 預約確認信，無須填寫下方 SMTP 主機與 16 碼密碼（下方 SMTP 欄位僅供本機 Python 模式使用）。
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">寄件者顯示名稱</label>
+                                <input type="text" id="cfgSmtpSenderName" placeholder="eReady 汐止康寧店 預約中心"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">系統異常告警通知信箱 (選填)</label>
+                                <input type="email" id="cfgAlertEmail" placeholder="發生錯誤時自動寄信通知店長"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-bold text-slate-700 mb-1">SMTP 伺服器主機 (本機模式用)</label>
+                                <input type="text" id="cfgSmtpHost" value="smtp.gmail.com"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">連接埠 (Port)</label>
+                                <input type="number" id="cfgSmtpPort" value="587"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">寄件 Email 帳號 (或客戶回信 Reply-To 信箱)</label>
+                            <input type="email" id="cfgSmtpUser" placeholder="yourshop@gmail.com"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">
+                                Email 應用程式密碼 (GAS 雲端模式免填)
+                            </label>
+                            <input type="password" id="cfgSmtpPassword" placeholder="Google Apps Script 雲端模式免填此欄"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                        <button type="button" onclick="sendTestNotification()" class="px-4 py-2.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold text-xs transition">
+                            <i class="fa-solid fa-paper-plane mr-1"></i> 一鍵發送測試通知 (含預覽)
+                        </button>
+                        <button type="button" onclick="saveNotificationConfig()" class="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition">
+                            <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存通知設定
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 通知發送紀錄與訊息預覽器 -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-sky-600"></i> 通知發送紀錄與內容預覽器
+                        </h3>
+                        <p class="text-xs text-slate-500">即使尚未填入 LINE Token 或 SMTP 密碼，系統也會在此完整呈現每一次預約產生的員工群組通知、客戶 LINE 通知與 Email 信件內容供您檢視！</p>
+                    </div>
+                    <button onclick="loadNotificationLogs()" class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600">
+                        <i class="fa-solid fa-rotate mr-1"></i> 重新整理紀錄
+                    </button>
+                </div>
+
+                <div id="notificationLogsContainer" class="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                    <!-- JS 動態載入通知發送紀錄 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             ADMIN TAB 6: 刊頭圖片 & 店家基本資料 & 密碼設定
+             ========================================== -->
+        <section id="adminSection-store" class="hidden space-y-6">
+
+            <!-- 刊頭自定義圖片 & 店家 Logo 設定 -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-5">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-regular fa-image text-[#253e42]"></i> 預約網站刊頭圖片 & 品牌 Logo 自定義設定
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">可直接從電腦或手機上傳照片更換預約網站頂部的刊頭大圖與店家 Logo，上傳後點選「儲存刊頭與門市設定」即刻生效</p>
+                    </div>
+                    <button onclick="saveStoreInfo()" class="px-6 py-2.5 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white font-bold text-sm shadow-sm transition">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存刊頭與門市設定
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 刊頭背景大圖 -->
+                    <div class="lg:col-span-2 space-y-3">
+                        <label class="block text-sm font-bold text-slate-800">1. 網站頂部刊頭背景圖片 (建議橫幅比例)</label>
+                        <div class="relative h-48 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+                            <img id="previewBannerImage" src="static/uploads/default_banner.jpg" alt="刊頭預覽"
+                                class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="storeInputBannerImage" oninput="document.getElementById('previewBannerImage').src=this.value"
+                                placeholder="static/uploads/default_banner.jpg 或 https://..."
+                                class="flex-1 min-w-[200px] px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                            <label class="px-4 py-2 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold cursor-pointer flex items-center gap-1.5">
+                                <i class="fa-solid fa-upload"></i> 上傳自定義刊頭圖片
+                                <input type="file" accept="image/*" class="hidden"
+                                    onchange="uploadImageToInput(this, 'storeInputBannerImage', 'previewBannerImage', 'banner')">
+                            </label>
+                            <button type="button" onclick="resetDefaultBanner()" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-600">
+                                恢復預設
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 店家品牌 Logo -->
+                    <div class="space-y-3">
+                        <label class="block text-sm font-bold text-slate-800">2. 店家品牌 Logo 圖片</label>
+                        <div class="h-48 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center p-4">
+                            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                <img id="previewLogoImage" src="static/uploads/default_logo.png" alt="Logo預覽"
+                                    class="max-h-24 w-auto object-contain mx-auto">
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="storeInputLogoImage" oninput="document.getElementById('previewLogoImage').src=this.value"
+                                placeholder="static/uploads/default_logo.png"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                            <label class="flex-1 py-2 px-3 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-upload"></i> 上傳 Logo
+                                <input type="file" accept="image/*" class="hidden"
+                                    onchange="uploadImageToInput(this, 'storeInputLogoImage', 'previewLogoImage', 'logo')">
+                            </label>
+                            <button type="button" onclick="resetDefaultLogo()" class="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-600">
+                                恢復預設
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                    <h2 class="text-base font-extrabold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-store text-[#253e42]"></i> 門市基本資料設定
+                    </h2>
+                    <div class="space-y-3 text-sm">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">門市名稱</label>
+                            <input type="text" id="storeInputName" class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">頂部副標題</label>
+                            <input type="text" id="storeInputSubtitle" class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">門市市話</label>
+                                <input type="text" id="storeInputPhone" class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">門市手機</label>
+                                <input type="text" id="storeInputMobile" class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">門市地址</label>
+                            <input type="text" id="storeInputAddress" class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">前台頂部公告提示文字</label>
+                            <input type="text" id="storeInputAnnouncement" class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">門市詳細介紹</label>
+                            <textarea id="storeInputDescription" rows="4" class="w-full px-3.5 py-2 rounded-xl border border-slate-300"></textarea>
+                        </div>
+                        <div class="flex justify-end pt-2">
+                            <button onclick="saveStoreInfo()" class="px-6 py-2.5 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white font-bold text-sm">
+                                儲存門市基本資料
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4 h-fit">
+                    <h2 class="text-base font-extrabold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-key text-amber-600"></i> 修改後台管理員密碼
+                    </h2>
+                    <div class="space-y-3 text-sm">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">新管理員密碼</label>
+                            <input type="password" id="newAdminPassword" placeholder="輸入新密碼"
+                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300">
+                        </div>
+                        <button onclick="saveAdminPassword()" class="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm">
+                            更新管理員密碼
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             ADMIN TAB 7: 系統執行 Log 除錯中心 & 每三個月自動空間清理
+             ========================================== -->
+        <section id="adminSection-logs" class="hidden space-y-6">
+
+            <!-- 1. 雲端連線設定 & 試算表容量監控 -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-heart-pulse text-emerald-600"></i> 系統健康狀態 ＆ Google 試算表容量監控
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">即時監控 Google 試算表各分頁筆數、儲存格使用率、Gmail 剩餘額度與自動排程狀態</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a id="openSpreadsheetLink" href="#" target="_blank" class="hidden px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold items-center gap-1.5">
+                            <i class="fa-solid fa-table"></i> 開啟 Google 試算表資料庫
+                        </a>
+                        <button onclick="loadSystemHealthAndCleanup()" class="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700">
+                            <i class="fa-solid fa-rotate mr-1"></i> 重新檢測
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 狀態指標卡 -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div class="text-[11px] text-slate-500 font-semibold">試算表儲存格使用率 (上限1,000萬格)</div>
+                        <div id="healthCellsPercent" class="text-xl font-extrabold text-[#253e42] mt-1">0.01%</div>
+                        <div id="healthCellsDetail" class="text-[11px] text-slate-400 mt-0.5">讀取中...</div>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div class="text-[11px] text-slate-500 font-semibold">今日 Gmail 剩餘免費寄信額度</div>
+                        <div id="healthMailQuota" class="text-xl font-extrabold text-sky-700 mt-1">-- 封</div>
+                        <div id="healthOwnerEmail" class="text-[11px] text-slate-400 mt-0.5 truncate">Google 帳號自動發信</div>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div class="text-[11px] text-slate-500 font-semibold">最近 7 天系統錯誤 / 警告數</div>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="healthError7d" class="text-xl font-extrabold text-rose-600">0 錯誤</span>
+                            <span id="healthWarn7d" class="text-sm font-bold text-amber-600">0 警告</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">發生錯誤時可於下方 Log 追查原因</div>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div class="text-[11px] text-slate-500 font-semibold">上次自動空間清理時間</div>
+                        <div id="healthLastCleanupAt" class="text-sm font-extrabold text-slate-800 mt-1">尚未執行</div>
+                        <div id="healthLastCleanupSummary" class="text-[11px] text-slate-400 mt-0.5 truncate">每日凌晨 03:00 自動執行</div>
+                    </div>
+                </div>
+
+                <!-- 各資料表分頁統計與屬性 (永久保存 vs 定期清理) -->
+                <div>
+                    <div class="text-xs font-bold text-slate-700 mb-2">📊 資料庫各分頁目前筆數與保留屬性：</div>
+                    <div id="healthSheetStatsGrid" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
+                        <!-- JS 動態渲染 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 每三個月 (90天) 自動清除暫存設定 & 永久保留 vs 可清除項目一覽 -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- 左側：永久保存 vs 定期清除對照表 -->
+                <div class="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-[#253e42]"></i> 永久保留項目 vs 定期自動清除項目說明
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">系統嚴格區分「網站營運永久資產」與「過期歷史暫存」，確保釋放空間時絕不影響網站運作</p>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+                            <div class="font-extrabold text-emerald-900 text-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-lock text-emerald-600"></i> 永久保留項目（系統保護、絕不刪除）
+                            </div>
+                            <ul class="space-y-1.5 text-emerald-900/90 pl-1">
+                                <li>✅ <strong>刊頭橫幅照片 & 品牌 Logo 圖片</strong>（含雲端硬碟圖檔與連結）</li>
+                                <li>✅ <strong>服務項目設定 & 服務項目自訂圖片</strong>（維修保養、賞車試乘、時長與說明）</li>
+                                <li>✅ <strong>試乘車種清單 & 各車種自訂照片</strong>（eReady、SUZUKI、eMoving 等所有車款）</li>
+                                <li>✅ <strong>每週營業時間、休息時段、預約規則</strong>（最晚幾小時前可預約、單一時段上限）</li>
+                                <li>✅ <strong>休假日 / 特定店休設定</strong>（所有未到期的店休與局部時段關閉設定）</li>
+                                <li>✅ <strong>LINE 官方帳號 Token、員工群組 ID、LIFF ID、後台管理密碼</strong></li>
+                                <li>✅ <strong>所有「未來尚未到店」及「最近 3 個月內」的有效預約紀錄</strong></li>
+                            </ul>
+                        </div>
+
+                        <div class="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                            <div class="font-extrabold text-amber-900 text-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-broom text-amber-600"></i> 定期自動清除項目（預設每滿 3 個月 / 90 天自動清除）
+                            </div>
+                            <ul class="space-y-1.5 text-amber-900/90 pl-1">
+                                <li>🧹 <strong>已過期超過 3 個月的「歷史預約紀錄」</strong>（依預約服務日期 `booking_date` 判定，早於 90 天前的已完成/已取消/過期預約自動清除並回收試算表空白列）</li>
+                                <li>🧹 <strong>超過 3 個月的「舊系統執行 Log 與通知預覽紀錄」</strong>（保留最近 90 天完整除錯紀錄，舊紀錄自動清除）</li>
+                                <li>🧹 <strong>超過 3 個月未活動且「非目前綁定中」的 LINE 偵測暫存紀錄</strong>（目前使用中的員工群組 ID 永久保留）</li>
+                                <li>🧹 <strong>雲端硬碟中「已被替換且不再使用」的孤兒舊圖片</strong>（例如更換過 5 次刊頭照片後，前 4 張不再被引用的舊圖檔會自動移至雲端硬碟垃圾桶釋放空間；目前使用中的圖片永不刪除）</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右側：自動清除設定與手動立即執行 -->
+                <div class="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4 flex flex-col justify-between">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-clock-rotate-left text-amber-600"></i> 自動清除週期與規則設定
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-0.5">由 Google Apps Script 每日凌晨 03:00 自動巡檢並清除超過保留天數的暫存資料</p>
+                            </div>
+                            <button onclick="saveDataRetentionSettings()" class="px-4 py-2 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white font-bold text-xs shadow-xs transition">
+                                <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存清理規則
+                            </button>
+                        </div>
+
+                        <div class="space-y-3 text-sm">
+                            <label class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                                <span class="font-bold text-slate-800 text-xs sm:text-sm">啟用定期自動清除過期暫存紀錄</span>
+                                <input type="checkbox" id="retEnableAutoCleanup" checked class="w-4 h-4 accent-[#253e42] rounded">
+                            </label>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">暫存資料保留天數 (預設 90 天 = 3 個月)</label>
+                                    <select id="retRetentionDays" onchange="previewCleanupNow()" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white">
+                                        <option value="60">60 天 (2 個月)</option>
+                                        <option value="90" selected>90 天 (3 個月 - 推薦預設)</option>
+                                        <option value="120">120 天 (4 個月)</option>
+                                        <option value="180">180 天 (6 個月)</option>
+                                        <option value="365">365 天 (1 年)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">清理基準日 (早於此日期的暫存將被清除)</label>
+                                    <div id="cleanupCutoffDateBadge" class="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-mono text-xs font-bold">
+                                        計算中...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 pt-1 text-xs">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="retPurgeBookings" checked class="rounded accent-[#253e42]">
+                                    <span class="text-slate-700 font-semibold">自動清除超過保留天數的「歷史預約紀錄 (Bookings)」</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="retPurgeSystemLogs" checked class="rounded accent-[#253e42]">
+                                    <span class="text-slate-700 font-semibold">自動清除超過保留天數的「舊系統執行紀錄 (SystemLogs)」</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="retPurgeLineTargets" checked class="rounded accent-[#253e42]">
+                                    <span class="text-slate-700 font-semibold">自動清除超過保留天數且未使用的「LINE 偵測暫存」</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="retPurgeOrphanImages" checked class="rounded accent-[#253e42]">
+                                    <span class="text-slate-700 font-semibold">自動將雲端硬碟中「已不再被網站使用」的舊上傳圖片移至垃圾桶</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 即時預覽與手動清理按鈕 -->
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 mt-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-700">🔍 目前可清理的過期暫存預覽：</span>
+                            <button type="button" onclick="previewCleanupNow()" class="text-xs text-sky-700 hover:underline font-bold">
+                                重新計算預覽
+                            </button>
+                        </div>
+                        <div id="cleanupPreviewStatsText" class="text-xs text-slate-600 leading-relaxed">
+                            正在計算可清理筆數...
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 pt-1">
+                            <button type="button" onclick="executeCleanupNow()" class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition">
+                                <i class="fa-solid fa-broom mr-1"></i> 立即執行清理釋放空間
+                            </button>
+                            <button type="button" onclick="reinstallAutoTriggers()" class="px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition">
+                                <i class="fa-solid fa-bolt mr-1"></i> 重新安裝/確認每日自動排程
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 系統執行 Log 除錯紀錄中心 (SystemLogs) -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-[#253e42]"></i> 系統執行 Log 除錯紀錄中心 (Execution Logs)
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            完整記錄每一筆客戶預約寫入、LINE 員工群組推播、客戶 LINE 推播、Email 寄信、Webhook 群組偵測與前端錯誤，點擊「詳情」可查看完整回傳碼與排解建議
+                        </p>
+                    </div>
+                    <button onclick="loadSystemExecutionLogs()" class="px-4 py-2 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold">
+                        <i class="fa-solid fa-rotate mr-1"></i> 重新整理 Log
+                    </button>
+                </div>
+
+                <!-- 篩選列 -->
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1">Log 等級篩選</label>
+                        <select id="logFilterLevel" onchange="loadSystemExecutionLogs()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white">
+                            <option value="">全部等級 (ALL)</option>
+                            <option value="ERROR">🚨 僅看錯誤 (ERROR - 失敗異常)</option>
+                            <option value="WARN">⚠️ 僅看警告 (WARN - 未設定/提醒)</option>
+                            <option value="INFO">🟢 一般紀錄 (INFO - 執行成功)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1">功能模組分類</label>
+                        <select id="logFilterCategory" onchange="loadSystemExecutionLogs()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white">
+                            <option value="">全部模組</option>
+                            <option value="BOOKING">📋 客戶預約寫入 (BOOKING)</option>
+                            <option value="LINE_STAFF">📢 員工群組 LINE 推播 (LINE_STAFF)</option>
+                            <option value="LINE_CUSTOMER">💬 客戶官方 LINE 推播 (LINE_CUSTOMER)</option>
+                            <option value="EMAIL">📧 客戶 Email 自動寄信 (EMAIL)</option>
+                            <option value="WEBHOOK">🛰️ LINE Webhook 群組偵測 (WEBHOOK)</option>
+                            <option value="CLEANUP">🧹 定期空間自動清理 (CLEANUP)</option>
+                            <option value="CLIENT">📱 客戶端瀏覽器錯誤 (CLIENT)</option>
+                            <option value="ADMIN">⚙️ 後台設定變更 (ADMIN)</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1">搜尋單號 / 錯誤訊息 / 電話 / 信箱</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="logFilterKeyword" placeholder="輸入預約單號 (例 BK261024-001) 或關鍵字..."
+                                onkeydown="if(event.key==='Enter') loadSystemExecutionLogs()"
+                                class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 text-xs">
+                            <button onclick="loadSystemExecutionLogs()" class="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">
+                                搜尋
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log 列表 -->
+                <div id="systemLogsTableContainer" class="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                    <div class="p-8 text-center text-slate-400 text-xs">載入系統執行紀錄中...</div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Preview Modal for Notification Content -->
+    <div id="previewModal" class="fixed inset-0 z-50 hidden bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+                <h3 id="previewModalTitle" class="font-bold text-sm">通知內容預覽</h3>
+                <button onclick="closePreviewModal()" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="previewModalBody" class="p-5 overflow-y-auto flex-1 text-sm"></div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         Admin JavaScript Logic
+         ========================================== -->
+    <script>
+        let adminData = {
+            settings: {},
+            services: [],
+            test_ride_models: [],
+            holidays: [],
+            detected_line_targets: [],
+            logs: []
+        };
+
+        window.addEventListener("DOMContentLoaded", async () => {
+            const res = await fetch("/api/admin/session");
+            const data = await res.json();
+            if (data.is_admin) {
+                document.getElementById("loginOverlay").classList.add("hidden");
+                await loadAdminOverview();
+                await loadAdminBookings();
+            }
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById("adminToast");
+            document.getElementById("adminToastText").textContent = msg;
+            toast.classList.remove("hidden");
+            setTimeout(() => toast.classList.add("hidden"), 3000);
+        }
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const pwd = document.getElementById("adminPasswordInput").value;
+            const errEl = document.getElementById("loginErrorText");
+            errEl.classList.add("hidden");
+
+            const res = await fetch("/api/admin/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: pwd })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                document.getElementById("loginOverlay").classList.add("hidden");
+                await loadAdminOverview();
+                await loadAdminBookings();
+            } else {
+                errEl.textContent = data.error || "密碼錯誤";
+                errEl.classList.remove("hidden");
+            }
+        }
+
+        async function handleAdminLogout() {
+            await fetch("/api/admin/logout", { method: "POST" });
+            location.reload();
+        }
+
+        function switchAdminTab(tab) {
+            const tabs = ["bookings", "schedule", "holidays", "services", "notifications", "store", "logs"];
+            tabs.forEach(t => {
+                document.getElementById(`adminSection-${t}`).classList.toggle("hidden", t !== tab);
+                const btn = document.getElementById(`adminTabBtn-${t}`);
+                if (t === tab) {
+                    btn.className = "admin-nav-active px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition";
+                } else {
+                    btn.className = "text-slate-300 hover:bg-slate-700 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition";
+                }
+            });
+            if (tab === "notifications") {
+                loadNotificationLogs();
+            } else if (tab === "logs") {
+                loadSystemHealthAndCleanup();
+                loadSystemExecutionLogs();
+            }
+        }
+
+        async function loadAdminOverview() {
+            const res = await fetch("/api/admin/overview");
+            if (res.status === 401) {
+                document.getElementById("loginOverlay").classList.remove("hidden");
+                return;
+            }
+            const data = await res.json();
+            if (!data.ok) return;
+            adminData = data;
+
+            // Stats
+            document.getElementById("statTodayCount").textContent = data.stats.today_count;
+            document.getElementById("statUpcomingCount").textContent = data.stats.upcoming_count;
+            document.getElementById("statMaintCount").textContent = data.stats.maint_count;
+            document.getElementById("statTestRideCount").textContent = data.stats.test_ride_count;
+
+            populateScheduleSettings();
+            renderHolidaysList();
+            renderAdminModelsList();
+            renderAdminServicesList();
+            populateNotificationSettings();
+            populateStoreSettings();
+        }
+
+        // ==========================================
+        // 1. 預約訂單管理
+        // ==========================================
+        async function loadAdminBookings() {
+            const dateVal = document.getElementById("filterBookingDate").value;
+            const formType = document.getElementById("filterFormType").value;
+            const status = document.getElementById("filterStatus").value;
+            const keyword = document.getElementById("filterKeyword").value.trim();
+
+            const params = new URLSearchParams();
+            if (dateVal) params.set("date", dateVal);
+            if (formType) params.set("form_type", formType);
+            if (status) params.set("status", status);
+            if (keyword) params.set("keyword", keyword);
+
+            const res = await fetch(`/api/admin/bookings?${params.toString()}`);
+            const data = await res.json();
+            if (!data.ok) return;
+
+            const container = document.getElementById("adminBookingsContainer");
+            const list = data.bookings || [];
+            if (list.length === 0) {
+                container.innerHTML = `<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200/80">尚無符合條件的預約紀錄</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(b => {
+                const isMaint = b.form_type === "maintenance";
+                const serviceTag = isMaint
+                    ? `<span class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-sky-100 text-sky-800"><i class="fa-solid fa-screwdriver-wrench mr-1"></i>${b.service_name}</span>`
+                    : `<span class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-motorcycle mr-1"></i>${b.service_name}</span>`;
+
+                const specificDetails = isMaint
+                    ? `
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs">
+                            <div><span class="text-slate-400">車牌號碼：</span><strong class="text-slate-900 font-mono text-sm">${b.license_plate || "-"}</strong></div>
+                            <div><span class="text-slate-400">里程 / 車型：</span><strong class="text-slate-800">${b.mileage || "未填"} / ${b.vehicle_model || "未填"}</strong></div>
+                            <div><span class="text-slate-400">需求選擇：</span><strong class="${b.maintenance_type === '維修/查修' ? 'text-rose-600' : 'text-sky-700'}">${b.maintenance_type || "-"}</strong></div>
+                            ${b.repair_notes ? `<div class="sm:col-span-3 pt-1 border-t border-slate-200/60"><span class="text-slate-400">需求說明：</span><strong class="text-slate-900">${b.repair_notes}</strong></div>` : ""}
+                        </div>
+                    `
+                    : `
+                        <div class="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200/70 text-xs flex flex-wrap items-center gap-4">
+                            <div><span class="text-slate-500">預約試乘車種：</span><strong class="text-emerald-800 text-sm">${b.test_ride_model || "-"}</strong></div>
+                            ${b.repair_notes ? `<div><span class="text-slate-500">客戶備註：</span><strong class="text-slate-800">${b.repair_notes}</strong></div>` : ""}
+                        </div>
+                    `;
+
+                const notifyPill = (label, st) => {
+                    const color = st === "sent" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                        : (st === "simulated" ? "text-sky-600 bg-sky-50 border-sky-200" : "text-rose-600 bg-rose-50 border-rose-200");
+                    const text = st === "sent" ? "已發送" : (st === "simulated" ? "已記錄(預覽)" : st);
+                    return `<span class="px-2 py-0.5 rounded border text-[11px] font-semibold ${color}">${label}: ${text}</span>`;
+                };
+
+                return `
+                    <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-mono text-xs font-bold text-slate-400">${b.booking_no}</span>
+                                ${serviceTag}
+                                <span class="text-base font-extrabold text-slate-900">${b.booking_date} ${b.booking_time}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select onchange="updateBookingStatus(${b.id}, this.value)"
+                                    class="px-3 py-1.5 rounded-xl border text-xs font-bold ${
+                                        b.status === 'confirmed' ? 'bg-sky-50 border-sky-300 text-sky-800' :
+                                        b.status === 'completed' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
+                                        'bg-slate-100 border-slate-300 text-slate-500'
+                                    }">
+                                    <option value="confirmed" ${b.status === 'confirmed' ? 'selected' : ''}>🟢 預約成功 (待到店)</option>
+                                    <option value="completed" ${b.status === 'completed' ? 'selected' : ''}>✅ 已完成服務</option>
+                                    <option value="cancelled" ${b.status === 'cancelled' ? 'selected' : ''}>⚪ 已取消 (釋放名額)</option>
+                                </select>
+                                <button onclick="resendBookingNotify(${b.id})" title="重新發送 LINE 與 Email 通知"
+                                    class="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold">
+                                    <i class="fa-solid fa-bell"></i> 重發通知
+                                </button>
+                                <button onclick="deleteBookingRecord(${b.id})" title="刪除此筆紀錄"
+                                    class="px-2.5 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs sm:text-sm text-slate-700">
+                            <div><i class="fa-regular fa-user text-slate-400 mr-1"></i>姓名：<strong>${b.customer_name}</strong></div>
+                            <div><i class="fa-solid fa-phone text-slate-400 mr-1"></i>電話：<a href="tel:${b.customer_phone}" class="font-bold text-sky-600 hover:underline">${b.customer_phone}</a></div>
+                            <div><i class="fa-regular fa-envelope text-slate-400 mr-1"></i>Email：<span>${b.customer_email}</span></div>
+                            ${b.line_display_name ? `<div class="text-emerald-700 font-semibold"><i class="fa-brands fa-line mr-1"></i>LINE：${b.line_display_name}</div>` : ""}
+                        </div>
+
+                        ${specificDetails}
+
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                ${notifyPill("員工群組LINE", b.staff_notify_status)}
+                                ${notifyPill("客戶LINE", b.customer_line_notify_status)}
+                                ${notifyPill("客戶Email", b.customer_email_notify_status)}
+                            </div>
+                            <span class="text-[11px] text-slate-400">建立於 ${b.created_at}</span>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function clearBookingFilters() {
+            document.getElementById("filterBookingDate").value = "";
+            document.getElementById("filterFormType").value = "";
+            document.getElementById("filterStatus").value = "";
+            document.getElementById("filterKeyword").value = "";
+            loadAdminBookings();
+        }
+
+        async function updateBookingStatus(id, status) {
+            const res = await fetch(`/api/admin/bookings/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("預約狀態已更新");
+                loadAdminOverview();
+                loadAdminBookings();
+            }
+        }
+
+        async function resendBookingNotify(id) {
+            const res = await fetch(`/api/admin/bookings/${id}/resend-notify`, { method: "POST" });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("已重新觸發 LINE 與 Email 通知！");
+                loadAdminBookings();
+            }
+        }
+
+        async function deleteBookingRecord(id) {
+            if (!confirm("確定要永久刪除此筆預約紀錄嗎？")) return;
+            await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+            showToast("預約紀錄已刪除");
+            loadAdminOverview();
+            loadAdminBookings();
+        }
+
+        // ==========================================
+        // 2. 營業時間、可預約時間、最晚幾小時前預約
+        // ==========================================
+        function populateScheduleSettings() {
+            const rules = adminData.settings.booking_rules || {};
+            document.getElementById("ruleMinLeadHours").value = rules.min_lead_hours ?? 2;
+            document.getElementById("ruleMaxPerSlot").value = rules.max_bookings_per_slot ?? 1;
+            document.getElementById("ruleMaxAdvanceDays").value = rules.max_advance_days ?? 60;
+            document.getElementById("ruleSlotInterval").value = String(rules.slot_interval_minutes || 60);
+            document.getElementById("ruleCustomSlotsInput").value = (rules.custom_slots || []).join(", ");
+
+            const mode = rules.slot_mode || "interval";
+            document.querySelectorAll('input[name="slotModeRadio"]').forEach(r => {
+                r.checked = (r.value === mode);
+            });
+            toggleSlotModeUI();
+
+            // 渲染週一~週日營業時間
+            const bh = adminData.settings.business_hours || {};
+            const container = document.getElementById("businessHoursEditorList");
+            const keys = ["0", "1", "2", "3", "4", "5", "6"];
+            const defaultLabels = { "0": "週一", "1": "週二", "2": "週三", "3": "週四", "4": "週五", "5": "週六", "6": "週日" };
+
+            container.innerHTML = keys.map(k => {
+                const d = bh[k] || { label: defaultLabels[k], is_open: k !== "6", open_time: "10:00", close_time: "21:00", break_start: "", break_end: "" };
+                return `
+                    <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-[130px]">
+                            <input type="checkbox" id="bhOpen-${k}" ${d.is_open ? "checked" : ""} class="w-4 h-4 rounded text-sky-600">
+                            <span class="font-extrabold text-slate-800 text-sm">${d.label || defaultLabels[k]}</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <span class="text-slate-500 font-semibold">營業時段：</span>
+                            <input type="time" id="bhStart-${k}" value="${d.open_time || '10:00'}" class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold">
+                            <span>至</span>
+                            <input type="time" id="bhEnd-${k}" value="${d.close_time || '21:00'}" class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold">
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <span class="text-slate-400">休息時段(選填)：</span>
+                            <input type="time" id="bhBreakStart-${k}" value="${d.break_start || ''}" class="px-2 py-1.5 rounded-lg border border-slate-200 bg-white">
+                            <span>至</span>
+                            <input type="time" id="bhBreakEnd-${k}" value="${d.break_end || ''}" class="px-2 py-1.5 rounded-lg border border-slate-200 bg-white">
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function toggleSlotModeUI() {
+            const mode = document.querySelector('input[name="slotModeRadio"]:checked')?.value || "interval";
+            document.getElementById("slotModeIntervalBox").classList.toggle("hidden", mode !== "interval");
+            document.getElementById("slotModeCustomBox").classList.toggle("hidden", mode !== "custom");
+        }
+
+        async function saveBookingRules() {
+            const mode = document.querySelector('input[name="slotModeRadio"]:checked')?.value || "interval";
+            const customSlotsRaw = document.getElementById("ruleCustomSlotsInput").value;
+            const customSlots = customSlotsRaw.split(",").map(s => s.trim()).filter(Boolean);
+
+            const payload = {
+                min_lead_hours: parseFloat(document.getElementById("ruleMinLeadHours").value) || 0,
+                max_bookings_per_slot: parseInt(document.getElementById("ruleMaxPerSlot").value, 10) || 1,
+                max_advance_days: parseInt(document.getElementById("ruleMaxAdvanceDays").value, 10) || 60,
+                slot_mode: mode,
+                slot_interval_minutes: parseInt(document.getElementById("ruleSlotInterval").value, 10) || 60,
+                custom_slots: customSlots
+            };
+
+            const res = await fetch("/api/admin/settings/booking_rules", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("已儲存可預約時間與預約限制規則！");
+                loadAdminOverview();
+            }
+        }
+
+        async function saveBusinessHours() {
+            const defaultLabels = { "0": "週一", "1": "週二", "2": "週三", "3": "週四", "4": "週五", "5": "週六", "6": "週日" };
+            const payload = {};
+            ["0", "1", "2", "3", "4", "5", "6"].forEach(k => {
+                payload[k] = {
+                    label: defaultLabels[k],
+                    is_open: document.getElementById(`bhOpen-${k}`).checked,
+                    open_time: document.getElementById(`bhStart-${k}`).value || "10:00",
+                    close_time: document.getElementById(`bhEnd-${k}`).value || "21:00",
+                    break_start: document.getElementById(`bhBreakStart-${k}`).value || "",
+                    break_end: document.getElementById(`bhBreakEnd-${k}`).value || ""
+                };
+            });
+
+            const res = await fetch("/api/admin/settings/business_hours", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("每週營業時間設定已儲存！");
+                loadAdminOverview();
+            }
+        }
+
+        // ==========================================
+        // 3. 休假日設定
+        // ==========================================
+        function toggleHolidayPartialTime() {
+            const isFull = document.getElementById("holIsFullDay").checked;
+            document.getElementById("holPartialTimeBox").classList.toggle("hidden", isFull);
+        }
+
+        function renderHolidaysList() {
+            const container = document.getElementById("holidaysListContainer");
+            const list = adminData.holidays || [];
+            if (list.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs">目前尚無設定特定休假日</div>`;
+                return;
+            }
+            container.innerHTML = list.map(h => `
+                <div class="p-3.5 rounded-xl border border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-extrabold text-slate-900">
+                                ${h.start_date === h.end_date ? h.start_date : `${h.start_date} ~ ${h.end_date}`}
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md text-xs font-bold ${h.is_full_day ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}">
+                                ${h.is_full_day ? "全天休假" : `局部暫停 (${h.closed_start_time}~${h.closed_end_time})`}
+                            </span>
+                        </div>
+                        <div class="text-xs text-slate-500 mt-0.5">原因說明：${h.reason}</div>
+                    </div>
+                    <button onclick="deleteHoliday(${h.id})" class="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold">
+                        刪除
+                    </button>
+                </div>
+            `).join("");
+        }
+
+        async function handleAddHoliday(e) {
+            e.preventDefault();
+            const payload = {
+                start_date: document.getElementById("holStartDate").value,
+                end_date: document.getElementById("holEndDate").value,
+                reason: document.getElementById("holReason").value.trim(),
+                is_full_day: document.getElementById("holIsFullDay").checked,
+                closed_start_time: document.getElementById("holStartTime").value,
+                closed_end_time: document.getElementById("holEndTime").value
+            };
+            const res = await fetch("/api/admin/holidays", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("已新增休假日設定！");
+                loadAdminOverview();
+            }
+        }
+
+        async function deleteHoliday(id) {
+            await fetch(`/api/admin/holidays/${id}`, { method: "DELETE" });
+            showToast("已刪除休假日");
+            loadAdminOverview();
+        }
+
+        // ==========================================
+        // 4. 服務項目 & 試乘車種管理
+        // ==========================================
+        function renderAdminModelsList() {
+            const container = document.getElementById("adminModelsList");
+            const models = adminData.test_ride_models || [];
+            const fallbackImg = "static/uploads/service_test_ride.jpg";
+
+            container.innerHTML = models.map(m => {
+                const imgUrl = m.image_url || "";
+                const displayImg = imgUrl || fallbackImg;
+                return `
+                <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row gap-3.5 items-start">
+                    <!-- 車款圖片預覽與一鍵上傳 -->
+                    <div class="w-full sm:w-36 shrink-0 space-y-2">
+                        <div class="relative h-28 w-full rounded-xl overflow-hidden border border-slate-200 bg-white flex items-center justify-center">
+                            <img id="modelPreviewImg-${m.id}" src="${displayImg}" alt="${m.name}"
+                                onerror="this.src='${fallbackImg}'"
+                                class="w-full h-full object-cover">
+                            ${!imgUrl ? `<span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/55 text-white text-[10px]">預設示意圖</span>` : ""}
+                        </div>
+                        <label class="w-full py-1.5 px-2.5 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition">
+                            <i class="fa-solid fa-camera"></i> 上傳車款圖片
+                            <input type="file" accept="image/*" class="hidden"
+                                onchange="uploadModelImage(${m.id}, this)">
+                        </label>
+                    </div>
+
+                    <!-- 車款名稱、品牌、圖片網址與儲存 -->
+                    <div class="flex-1 w-full space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="modelActive-${m.id}" ${m.is_active ? "checked" : ""}
+                                    onchange="saveTestRideModel(${m.id})" class="w-4 h-4 rounded text-[#253e42]">
+                                <span class="text-xs font-bold text-slate-600">開放預約試乘</span>
+                            </label>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="saveTestRideModel(${m.id})" class="px-3.5 py-1.5 rounded-lg bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold">
+                                    儲存
+                                </button>
+                                <button onclick="deleteTestRideModel(${m.id})" class="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs" title="刪除車種">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="col-span-2">
+                                <label class="block text-[11px] font-bold text-slate-500 mb-0.5">車種名稱</label>
+                                <input type="text" id="modelName-${m.id}" value="${m.name}"
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm font-bold bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-500 mb-0.5">品牌標籤</label>
+                                <input type="text" id="modelBrand-${m.id}" value="${m.brand || ''}" placeholder="品牌"
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-0.5">車款圖片路徑或網址</label>
+                            <input type="text" id="modelImageUrl-${m.id}" value="${imgUrl}" placeholder="上傳圖片後自動帶入，或直接貼上網址"
+                                oninput="document.getElementById('modelPreviewImg-${m.id}').src = this.value || '${fallbackImg}'"
+                                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("");
+        }
+
+        async function uploadModelImage(modelId, fileInput) {
+            const file = fileInput.files?.[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("prefix", `model_${modelId}`);
+
+            showToast("正在上傳車款圖片...");
+            try {
+                const res = await fetch("/api/admin/upload-image", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    document.getElementById(`modelImageUrl-${modelId}`).value = data.url;
+                    document.getElementById(`modelPreviewImg-${modelId}`).src = data.url;
+                    await saveTestRideModel(modelId);
+                } else {
+                    alert(data.error || "圖片上傳失敗");
+                }
+            } catch (e) {
+                alert("圖片上傳發生錯誤");
+            } finally {
+                fileInput.value = "";
+            }
+        }
+
+        async function handleAddTestRideModel(e) {
+            e.preventDefault();
+            const name = document.getElementById("newModelName").value.trim();
+            const brand = document.getElementById("newModelBrand").value.trim();
+            const image_url = document.getElementById("newModelImageUrl").value.trim();
+            const sort_order = parseInt(document.getElementById("newModelSort").value, 10) || 10;
+
+            const res = await fetch("/api/admin/test-ride-models", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, brand, image_url, sort_order, is_active: true })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                document.getElementById("newModelName").value = "";
+                document.getElementById("newModelBrand").value = "";
+                document.getElementById("newModelImageUrl").value = "";
+                showToast(data.message);
+                loadAdminOverview();
+            }
+        }
+
+        async function saveTestRideModel(id) {
+            const name = document.getElementById(`modelName-${id}`).value.trim();
+            const brand = document.getElementById(`modelBrand-${id}`).value.trim();
+            const image_url = document.getElementById(`modelImageUrl-${id}`).value.trim();
+            const is_active = document.getElementById(`modelActive-${id}`).checked;
+
+            const res = await fetch(`/api/admin/test-ride-models/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, brand, image_url, is_active, sort_order: 1 })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("試乘車種與圖片已更新！");
+                loadAdminOverview();
+            }
+        }
+
+        async function deleteTestRideModel(id) {
+            if (!confirm("確定要刪除此試乘車種嗎？")) return;
+            await fetch(`/api/admin/test-ride-models/${id}`, { method: "DELETE" });
+            showToast("試乘車種已刪除");
+            loadAdminOverview();
+        }
+
+        function toggleNewServiceBox() {
+            document.getElementById("newServiceBox").classList.toggle("hidden");
+        }
+
+        async function uploadImageToInput(fileInput, targetInputId, previewImgId, prefix = "img") {
+            const file = fileInput.files?.[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("prefix", prefix);
+
+            showToast("圖片上傳中...");
+            try {
+                const res = await fetch("/api/admin/upload-image", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    const inputEl = document.getElementById(targetInputId);
+                    if (inputEl) inputEl.value = data.url;
+                    if (previewImgId) {
+                        const imgEl = document.getElementById(previewImgId);
+                        if (imgEl) imgEl.src = data.url;
+                    }
+                    showToast("圖片已上傳！請點選「儲存」以套用變更");
+                } else {
+                    alert(data.error || "圖片上傳失敗");
+                }
+            } catch (err) {
+                alert("圖片上傳發生錯誤");
+            } finally {
+                fileInput.value = "";
+            }
+        }
+
+        function renderAdminServicesList() {
+            const container = document.getElementById("adminServicesList");
+            const services = adminData.services || [];
+            container.innerHTML = services.map(s => {
+                const defaultImg = s.form_type === "maintenance"
+                    ? "static/uploads/service_maintenance.jpg"
+                    : "static/uploads/service_test_ride.jpg";
+                const imgUrl = s.image_url || defaultImg;
+
+                return `
+                <div class="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col md:flex-row gap-4 items-start">
+                    <!-- 服務項目圖片預覽與上傳 -->
+                    <div class="w-full md:w-56 shrink-0 space-y-2">
+                        <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-200 bg-white">
+                            <img id="svcPreviewImg-${s.id}" src="${imgUrl}" alt="${s.name}"
+                                onerror="this.src='${defaultImg}'"
+                                class="w-full h-full object-cover">
+                        </div>
+                        <label class="w-full py-2 px-3 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition">
+                            <i class="fa-solid fa-camera"></i> 上傳更換服務圖片
+                            <input type="file" accept="image/*" class="hidden"
+                                onchange="uploadImageToInput(this, 'svcImageUrl-${s.id}', 'svcPreviewImg-${s.id}', 'service_${s.id}')">
+                        </label>
+                    </div>
+
+                    <!-- 服務項目文字與設定 -->
+                    <div class="flex-1 w-full space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input type="checkbox" id="svcActive-${s.id}" ${s.is_active ? "checked" : ""} class="w-4 h-4 rounded text-[#253e42]" title="啟用/停用">
+                                <input type="text" id="svcName-${s.id}" value="${s.name}" class="px-3 py-1.5 rounded-lg border border-slate-300 font-extrabold text-sm bg-white">
+                                <select id="svcFormType-${s.id}" class="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white">
+                                    <option value="maintenance" ${s.form_type === 'maintenance' ? 'selected' : ''}>表單：維修保養 (車牌/里程/車型/需求)</option>
+                                    <option value="test_ride" ${s.form_type === 'test_ride' ? 'selected' : ''}>表單：賞車試乘 (試乘車種選單)</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-500">時長(分)：</span>
+                                <input type="number" id="svcDuration-${s.id}" value="${s.duration_minutes || 60}" class="w-20 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
+                                <button onclick="saveServiceItem(${s.id})" class="px-4 py-1.5 rounded-lg bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold">
+                                    儲存修改
+                                </button>
+                                <button onclick="deleteServiceItem(${s.id})" class="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">服務圖片路徑或網址</label>
+                            <input type="text" id="svcImageUrl-${s.id}" value="${imgUrl}"
+                                oninput="document.getElementById('svcPreviewImg-${s.id}').src=this.value"
+                                class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">服務說明文字</label>
+                            <textarea id="svcDesc-${s.id}" rows="2" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white">${s.description || ''}</textarea>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("");
+        }
+
+        async function handleAddService(e) {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById("newSvcName").value.trim(),
+                form_type: document.getElementById("newSvcFormType").value,
+                duration_minutes: parseInt(document.getElementById("newSvcDuration").value, 10) || 60,
+                image_url: document.getElementById("newSvcImageUrl").value.trim(),
+                description: document.getElementById("newSvcDesc").value.trim(),
+                is_active: true
+            };
+            const res = await fetch("/api/admin/services", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                toggleNewServiceBox();
+                showToast("已新增服務項目！");
+                loadAdminOverview();
+            }
+        }
+
+        async function saveServiceItem(id) {
+            const payload = {
+                name: document.getElementById(`svcName-${id}`).value.trim(),
+                form_type: document.getElementById(`svcFormType-${id}`).value,
+                duration_minutes: parseInt(document.getElementById(`svcDuration-${id}`).value, 10) || 60,
+                image_url: document.getElementById(`svcImageUrl-${id}`).value.trim(),
+                description: document.getElementById(`svcDesc-${id}`).value.trim(),
+                is_active: document.getElementById(`svcActive-${id}`).checked
+            };
+            const res = await fetch(`/api/admin/services/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("服務項目與圖片已更新！");
+                loadAdminOverview();
+            }
+        }
+
+        async function deleteServiceItem(id) {
+            if (!confirm("確定要刪除此服務項目嗎？")) return;
+            await fetch(`/api/admin/services/${id}`, { method: "DELETE" });
+            showToast("服務項目已刪除");
+            loadAdminOverview();
+        }
+
+        // ==========================================
+        // 5. LINE 與 Email 通知設定
+        // ==========================================
+        function populateNotificationSettings() {
+            const cfg = adminData.settings.notification_config || {};
+            document.getElementById("cfgEnableLineStaff").checked = cfg.enable_line_staff_notify !== false;
+            document.getElementById("cfgEnableLineCustomer").checked = cfg.enable_line_customer_notify !== false;
+            document.getElementById("cfgEnableEmailCustomer").checked = cfg.enable_email_customer_notify !== false;
+
+            document.getElementById("cfgLineToken").value = cfg.line_channel_access_token || "";
+            document.getElementById("cfgLineStaffGroupId").value = cfg.line_staff_group_id || "";
+            document.getElementById("cfgLineLiffId").value = cfg.line_liff_id || "";
+
+            document.getElementById("cfgSmtpHost").value = cfg.smtp_host || "smtp.gmail.com";
+            document.getElementById("cfgSmtpPort").value = cfg.smtp_port || 587;
+            document.getElementById("cfgSmtpSenderName").value = cfg.email_sender_name || cfg.smtp_sender_name || "eReady 汐止康寧店 預約中心";
+            document.getElementById("cfgSmtpUser").value = cfg.email_reply_to || cfg.smtp_user || "";
+            document.getElementById("cfgSmtpPassword").value = cfg.smtp_password || "";
+            if (document.getElementById("cfgAlertEmail")) {
+                document.getElementById("cfgAlertEmail").value = cfg.alert_email || "";
+            }
+
+            const targets = adminData.detected_line_targets || [];
+            const tBox = document.getElementById("detectedLineTargetsBox");
+            if (targets.length === 0) {
+                tBox.innerHTML = `<div class="text-slate-400 text-[11px]">尚無偵測紀錄（當機器人被加入群組並收到訊息後會自動出現）</div>`;
+            } else {
+                tBox.innerHTML = targets.map(t => `
+                    <div class="flex items-center justify-between bg-white p-2 rounded-lg border border-emerald-200">
+                        <div>
+                            <span class="font-mono font-bold text-slate-800">${t.target_id}</span>
+                            <span class="text-[10px] text-slate-500 ml-1">(${t.target_type} / ${t.last_message || ''})</span>
+                        </div>
+                        <button type="button" onclick="document.getElementById('cfgLineStaffGroupId').value='${t.target_id}'"
+                            class="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold">
+                            套用此 ID
+                        </button>
+                    </div>
+                `).join("");
+            }
+        }
+
+        async function saveNotificationConfig() {
+            const senderName = document.getElementById("cfgSmtpSenderName").value.trim();
+            const smtpUser = document.getElementById("cfgSmtpUser").value.trim();
+            const alertEmail = document.getElementById("cfgAlertEmail") ? document.getElementById("cfgAlertEmail").value.trim() : "";
+            const payload = {
+                enable_line_staff_notify: document.getElementById("cfgEnableLineStaff").checked,
+                enable_line_customer_notify: document.getElementById("cfgEnableLineCustomer").checked,
+                enable_email_customer_notify: document.getElementById("cfgEnableEmailCustomer").checked,
+                line_channel_access_token: document.getElementById("cfgLineToken").value.trim(),
+                line_staff_group_id: document.getElementById("cfgLineStaffGroupId").value.trim(),
+                line_liff_id: document.getElementById("cfgLineLiffId").value.trim(),
+                smtp_host: document.getElementById("cfgSmtpHost").value.trim(),
+                smtp_port: parseInt(document.getElementById("cfgSmtpPort").value, 10) || 587,
+                smtp_sender_name: senderName,
+                email_sender_name: senderName,
+                smtp_user: smtpUser,
+                email_reply_to: smtpUser,
+                alert_email: alertEmail,
+                smtp_password: document.getElementById("cfgSmtpPassword").value.trim()
+            };
+            const res = await fetch("/api/admin/settings/notification_config", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("LINE 與 Email 通知設定已儲存！");
+            }
+        }
+
+        async function sendTestNotification() {
+            await saveNotificationConfig();
+            const testEmail = document.getElementById("cfgSmtpUser").value.trim() || "test@example.com";
+            const res = await fetch("/api/admin/notifications/test", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ test_email: testEmail })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("已觸發測試通知！請於下方紀錄點擊預覽內容");
+                await loadNotificationLogs();
+            }
+        }
+
+        async function loadNotificationLogs() {
+            const res = await fetch("/api/admin/notifications/logs");
+            const data = await res.json();
+            if (!data.ok) return;
+            adminData.logs = data.logs || [];
+            const container = document.getElementById("notificationLogsContainer");
+            if (adminData.logs.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs">尚無通知發送紀錄</div>`;
+                return;
+            }
+
+            container.innerHTML = adminData.logs.map((log, idx) => {
+                const chLabel = log.channel === "staff_line" ? "📢 員工 LINE 群組通報"
+                    : (log.channel === "customer_line" ? "💬 客戶官方 LINE 推播" : "📧 客戶 Email 確認信");
+                const stBadge = log.status === "sent"
+                    ? `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold text-[11px]">已真實發送</span>`
+                    : (log.status === "simulated"
+                        ? `<span class="px-2 py-0.5 rounded bg-sky-100 text-sky-700 font-bold text-[11px]">模擬預覽紀錄</span>`
+                        : `<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[11px]">發送失敗</span>`);
+
+                return `
+                    <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div class="space-y-0.5">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-900">${chLabel}</span>
+                                ${stBadge}
+                                <span class="font-mono text-slate-400">${log.booking_no}</span>
+                            </div>
+                            <div class="text-slate-500">接收對象：${log.recipient} ｜ 時間：${log.created_at}</div>
+                            ${log.error_message ? `<div class="text-[11px] text-amber-700">${log.error_message}</div>` : ""}
+                        </div>
+                        <button onclick="previewLogContent(${idx})" class="px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-700">
+                            <i class="fa-regular fa-eye mr-1"></i> 檢視通知內容
+                        </button>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function previewLogContent(idx) {
+            const log = adminData.logs[idx];
+            if (!log) return;
+            document.getElementById("previewModalTitle").textContent = `${log.subject} (${log.booking_no})`;
+            const body = document.getElementById("previewModalBody");
+            if (log.channel === "customer_email") {
+                body.innerHTML = log.content;
+            } else {
+                body.innerHTML = `<pre class="whitespace-pre-wrap font-sans bg-slate-900 text-emerald-300 p-4 rounded-xl text-sm leading-relaxed">${log.content}</pre>`;
+            }
+            document.getElementById("previewModal").classList.remove("hidden");
+        }
+
+        function closePreviewModal() {
+            document.getElementById("previewModal").classList.add("hidden");
+        }
+
+        // ==========================================
+        // 6. 刊頭圖片、店家基本資料與密碼
+        // ==========================================
+        function populateStoreSettings() {
+            const s = adminData.settings.store_info || {};
+            document.getElementById("storeInputName").value = s.name || "";
+            document.getElementById("storeInputSubtitle").value = s.subtitle || "";
+            document.getElementById("storeInputPhone").value = s.phone || "";
+            document.getElementById("storeInputMobile").value = s.mobile || "";
+            document.getElementById("storeInputAddress").value = s.address || "";
+            document.getElementById("storeInputAnnouncement").value = s.announcement || "";
+            document.getElementById("storeInputDescription").value = s.description || "";
+
+            const bannerUrl = s.banner_image || "static/uploads/default_banner.jpg";
+            const logoUrl = s.logo_image || "static/uploads/default_logo.png";
+            document.getElementById("storeInputBannerImage").value = bannerUrl;
+            document.getElementById("previewBannerImage").src = bannerUrl;
+            document.getElementById("storeInputLogoImage").value = logoUrl;
+            document.getElementById("previewLogoImage").src = logoUrl;
+        }
+
+        function resetDefaultBanner() {
+            const url = "static/uploads/default_banner.jpg";
+            document.getElementById("storeInputBannerImage").value = url;
+            document.getElementById("previewBannerImage").src = url;
+        }
+
+        function resetDefaultLogo() {
+            const url = "static/uploads/default_logo.png";
+            document.getElementById("storeInputLogoImage").value = url;
+            document.getElementById("previewLogoImage").src = url;
+        }
+
+        async function saveStoreInfo() {
+            const addr = document.getElementById("storeInputAddress").value.trim();
+            const payload = {
+                name: document.getElementById("storeInputName").value.trim(),
+                subtitle: document.getElementById("storeInputSubtitle").value.trim(),
+                phone: document.getElementById("storeInputPhone").value.trim(),
+                mobile: document.getElementById("storeInputMobile").value.trim(),
+                address: addr,
+                google_maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`,
+                announcement: document.getElementById("storeInputAnnouncement").value.trim(),
+                description: document.getElementById("storeInputDescription").value.trim(),
+                banner_image: document.getElementById("storeInputBannerImage").value.trim() || "static/uploads/default_banner.jpg",
+                logo_image: document.getElementById("storeInputLogoImage").value.trim() || "static/uploads/default_logo.png"
+            };
+            const res = await fetch("/api/admin/settings/store_info", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("刊頭圖片與門市基本資料已更新！");
+                loadAdminOverview();
+            }
+        }
+
+        async function saveAdminPassword() {
+            const pwd = document.getElementById("newAdminPassword").value.trim();
+            if (!pwd) {
+                alert("請輸入新密碼");
+                return;
+            }
+            const res = await fetch("/api/admin/settings/admin_auth", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: "admin", password: pwd })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                document.getElementById("newAdminPassword").value = "";
+                showToast("管理員密碼已更新！");
+            }
+        }
+
+        // ==========================================
+        // 7. 系統執行 Log 除錯中心 & 每三個月自動清理
+        // ==========================================
+        let systemExecLogs = [];
+
+        async function loadSystemHealthAndCleanup() {
+            try {
+                const res = await fetch("/api/admin/system-health");
+                const data = await res.json();
+                if (!data.ok || !data.health) return;
+                const h = data.health;
+
+                document.getElementById("healthCellsPercent").textContent = `${h.cells_usage_percent}%`;
+                document.getElementById("healthCellsDetail").textContent = `已配置約 ${(h.total_cells_used || 0).toLocaleString()} / 10,000,000 格`;
+                document.getElementById("healthMailQuota").textContent = h.mail_quota_remaining >= 0 ? `${h.mail_quota_remaining} 封` : "正常";
+                document.getElementById("healthOwnerEmail").textContent = h.owner_email || "Google 帳號內建寄信";
+                document.getElementById("healthLastCleanupAt").textContent = h.last_cleanup_at || "尚未執行";
+                document.getElementById("healthLastCleanupSummary").textContent = h.last_cleanup_summary || "每日凌晨 03:00 自動執行";
+
+                const ssLink = document.getElementById("openSpreadsheetLink");
+                if (h.spreadsheet_url) {
+                    ssLink.href = h.spreadsheet_url;
+                    ssLink.classList.remove("hidden");
+                    ssLink.classList.add("inline-flex");
+                }
+
+                // 渲染各分頁統計
+                const stats = h.sheet_stats || {};
+                const grid = document.getElementById("healthSheetStatsGrid");
+                grid.innerHTML = Object.keys(stats).map(key => {
+                    const st = stats[key];
+                    const badge = st.is_permanent
+                        ? `<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">永久保留</span>`
+                        : `<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">定期清理</span>`;
+                    return `
+                        <div class="p-3 rounded-xl border border-slate-200 bg-white space-y-1">
+                            <div class="flex items-center justify-between gap-1">
+                                <span class="font-bold text-slate-800 truncate">${st.sheet_name}</span>
+                                ${badge}
+                            </div>
+                            <div class="text-lg font-extrabold text-[#253e42]">${st.row_count} <span class="text-xs font-normal text-slate-400">筆</span></div>
+                        </div>
+                    `;
+                }).join("");
+
+                // 載入保留規則設定
+                const ret = h.data_retention || adminData.settings.data_retention || {};
+                document.getElementById("retEnableAutoCleanup").checked = ret.enabled !== false;
+                document.getElementById("retRetentionDays").value = String(ret.retention_days || 90);
+                document.getElementById("retPurgeBookings").checked = ret.purge_bookings !== false;
+                document.getElementById("retPurgeSystemLogs").checked = ret.purge_system_logs !== false;
+                document.getElementById("retPurgeLineTargets").checked = ret.purge_line_targets !== false;
+                document.getElementById("retPurgeOrphanImages").checked = ret.purge_orphan_images !== false;
+
+                await previewCleanupNow();
+            } catch (e) {
+                console.warn("loadSystemHealthAndCleanup error:", e);
+            }
+        }
+
+        async function previewCleanupNow() {
+            const days = parseInt(document.getElementById("retRetentionDays").value, 10) || 90;
+            const res = await fetch(`/api/admin/cleanup/preview?retention_days=${days}`);
+            const data = await res.json();
+            if (!data.ok || !data.preview) return;
+            const p = data.preview;
+            document.getElementById("cleanupCutoffDateBadge").textContent = `${p.cutoff_date} 以前`;
+            document.getElementById("cleanupPreviewStatsText").innerHTML = `
+                依目前設定（保留最近 <strong>${p.retention_days} 天</strong>內資料，基準日 <code class="px-1 py-0.5 rounded bg-white border">${p.cutoff_date}</code>）：<br>
+                • 過期預約紀錄：可清除 <strong class="text-amber-700">${p.bookings_removed} 筆</strong>（保留有效與近期預約 <strong>${p.bookings_kept} 筆</strong>）<br>
+                • 舊系統執行 Log：可清除 <strong class="text-amber-700">${p.logs_removed} 筆</strong>（保留近期 Log <strong>${p.logs_kept} 筆</strong>）<br>
+                • 未使用 LINE 偵測紀錄：可清除 <strong class="text-amber-700">${p.line_targets_removed} 筆</strong> ｜ 雲端硬碟孤兒舊圖片：可移至垃圾桶 <strong class="text-amber-700">${p.orphan_images_trashed} 張</strong>
+            `;
+        }
+
+        async function saveDataRetentionSettings() {
+            const payload = {
+                enabled: document.getElementById("retEnableAutoCleanup").checked,
+                retention_days: parseInt(document.getElementById("retRetentionDays").value, 10) || 90,
+                purge_bookings: document.getElementById("retPurgeBookings").checked,
+                purge_system_logs: document.getElementById("retPurgeSystemLogs").checked,
+                purge_line_targets: document.getElementById("retPurgeLineTargets").checked,
+                purge_orphan_images: document.getElementById("retPurgeOrphanImages").checked,
+                orphan_image_grace_days: 7
+            };
+            const res = await fetch("/api/admin/settings/data_retention", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("自動清理規則已儲存！");
+                await previewCleanupNow();
+            }
+        }
+
+        async function executeCleanupNow() {
+            const days = parseInt(document.getElementById("retRetentionDays").value, 10) || 90;
+            if (!confirm(`確定要立即清除超過 ${days} 天前的過期預約紀錄與舊執行 Log 嗎？\n（網站刊頭、Logo、服務項目、試乘車種、營業時間、休假日與近期/未來預約皆受保護不會刪除）`)) {
+                return;
+            }
+            await saveDataRetentionSettings();
+            const res = await fetch("/api/admin/cleanup/run", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ retention_days: days })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showToast(data.message || "空間清理完成！");
+                await loadSystemHealthAndCleanup();
+                await loadSystemExecutionLogs();
+            }
+        }
+
+        async function reinstallAutoTriggers() {
+            const res = await fetch("/api/admin/triggers/install", { method: "POST" });
+            const data = await res.json();
+            if (data.ok) {
+                showToast("已啟用每日 03:00 自動清理與每小時通知重試排程！");
+                await loadSystemHealthAndCleanup();
+            }
+        }
+
+        async function loadSystemExecutionLogs() {
+            const level = document.getElementById("logFilterLevel").value;
+            const category = document.getElementById("logFilterCategory").value;
+            const keyword = document.getElementById("logFilterKeyword").value.trim();
+
+            const params = new URLSearchParams();
+            if (level) params.set("level", level);
+            if (category) params.set("category", category);
+            if (keyword) params.set("keyword", keyword);
+
+            const res = await fetch(`/api/admin/system-logs?${params.toString()}`);
+            const data = await res.json();
+            if (!data.ok) return;
+
+            systemExecLogs = data.logs || [];
+            if (data.summary) {
+                document.getElementById("healthError7d").textContent = `${data.summary.error_7d || 0} 錯誤`;
+                document.getElementById("healthWarn7d").textContent = `${data.summary.warn_7d || 0} 警告`;
+            }
+
+            const container = document.getElementById("systemLogsTableContainer");
+            if (systemExecLogs.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-slate-400 text-xs">尚無符合篩選條件的執行紀錄</div>`;
+                return;
+            }
+
+            container.innerHTML = systemExecLogs.map((log, idx) => {
+                const lvlBadge = log.level === "ERROR"
+                    ? `<span class="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px]">ERROR 錯誤</span>`
+                    : (log.level === "WARN"
+                        ? `<span class="px-2 py-0.5 rounded bg-amber-500 text-white font-bold text-[10px]">WARN 警告</span>`
+                        : `<span class="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px]">INFO 正常</span>`);
+
+                const rowBg = log.level === "ERROR"
+                    ? "border-rose-300 bg-rose-50/60"
+                    : (log.level === "WARN" ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-slate-50/50");
+
+                const hasExtra = Boolean(log.detail || log.content);
+
+                return `
+                    <div class="p-3 rounded-xl border ${rowBg} flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                ${lvlBadge}
+                                <span class="px-2 py-0.5 rounded bg-white border border-slate-200 font-mono font-bold text-slate-700 text-[11px]">${log.category} / ${log.action}</span>
+                                ${log.booking_no ? `<span class="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-mono font-bold text-[11px]">${log.booking_no}</span>` : ""}
+                                <span class="text-slate-400 font-mono text-[11px]">${log.created_at}</span>
+                            </div>
+                            <div class="text-slate-800 font-semibold leading-relaxed">${log.message}</div>
+                            ${log.recipient ? `<div class="text-[11px] text-slate-500">對象：${log.recipient}</div>` : ""}
+                        </div>
+                        ${hasExtra ? `
+                        <button onclick="inspectSystemLogDetail(${idx})" class="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-700 text-xs">
+                            <i class="fa-solid fa-magnifying-glass-plus mr-1"></i> 查看詳情
+                        </button>` : ""}
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function inspectSystemLogDetail(idx) {
+            const log = systemExecLogs[idx];
+            if (!log) return;
+            document.getElementById("previewModalTitle").textContent = `[${log.level}] ${log.category} / ${log.action} (${log.created_at})`;
+            const body = document.getElementById("previewModalBody");
+
+            let html = `
+                <div class="space-y-3 text-xs">
+                    <div class="p-3 rounded-xl bg-slate-100 border border-slate-200 space-y-1">
+                        <div><strong>時間：</strong>${log.created_at}</div>
+                        <div><strong>分類 / 動作：</strong>${log.category} / ${log.action}</div>
+                        ${log.booking_no ? `<div><strong>相關預約單號：</strong>${log.booking_no}</div>` : ""}
+                        ${log.recipient ? `<div><strong>接收對象：</strong>${log.recipient}</div>` : ""}
+                        <div><strong>紀錄說明：</strong>${log.message}</div>
+                    </div>
+            `;
+            if (log.detail) {
+                html += `
+                    <div>
+                        <div class="font-bold text-slate-700 mb-1">技術細節 (Detail JSON / Error Stack)：</div>
+                        <pre class="whitespace-pre-wrap font-mono bg-slate-900 text-amber-300 p-3.5 rounded-xl text-xs overflow-x-auto">${log.detail}</pre>
+                    </div>
+                `;
+            }
+            if (log.content) {
+                if (log.category === "EMAIL") {
+                    html += `
+                        <div>
+                            <div class="font-bold text-slate-700 mb-1">Email 內容預覽：</div>
+                            <div class="border border-slate-200 rounded-xl p-2 bg-white">${log.content}</div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div>
+                            <div class="font-bold text-slate-700 mb-1">推播訊息內容：</div>
+                            <pre class="whitespace-pre-wrap font-sans bg-slate-900 text-emerald-300 p-3.5 rounded-xl text-xs">${log.content}</pre>
+                        </div>
+                    `;
+                }
+            }
+            html += `</div>`;
+            body.innerHTML = html;
+            document.getElementById("previewModal").classList.remove("hidden");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>eReady 汐止康寧店 | 線上預約系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- LINE LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- GitHub Pages + Google Apps Script 連線設定與橋接器 -->
+    <script src="config.js"></script>
+    <script src="static/js/gas-bridge.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+
+        :root {
+            --sb-base: #253e42;       /* 原站 SimplyBook 主色：溫潤深松綠 */
+            --sb-btn: #29302c;        /* 原站 SimplyBook 按鈕色：暖炭灰綠 */
+            --sb-warm-bg: #f8f6f2;    /* 柔和米白暖底色 */
+            --sb-card-border: #ece7df;
+            --sb-busy-bg: #fff3ed;    /* 原站忙碌/休假暖杏色 */
+            --sb-avail-bg: #f2fcff;   /* 原站可預約淺柔色 */
+            --sb-accent-warm: #c27849;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: var(--sb-warm-bg);
+            color: #2b2927;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .warm-card {
+            background: #ffffff;
+            border: 1px solid var(--sb-card-border);
+            box-shadow: 0 6px 24px rgba(37, 62, 66, 0.05);
+        }
+
+        .btn-primary-warm {
+            background-color: var(--sb-btn);
+            color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .btn-primary-warm:hover:not(:disabled) {
+            background-color: var(--sb-base);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37, 62, 66, 0.18);
+        }
+
+        .nav-tab-active {
+            color: var(--sb-base);
+            border-bottom: 3px solid var(--sb-base);
+            font-weight: 700;
+        }
+
+        .cal-day {
+            transition: all 0.15s ease;
+        }
+        .cal-day:not(:disabled):hover {
+            border-color: var(--sb-base);
+            background-color: #f4f8f8;
+        }
+        .cal-day-selected {
+            background-color: var(--sb-base) !important;
+            color: #ffffff !important;
+            border-color: var(--sb-base) !important;
+            box-shadow: 0 4px 12px rgba(37, 62, 66, 0.25);
+        }
+
+        .slot-pill-selected {
+            background-color: var(--sb-base) !important;
+            color: #ffffff !important;
+            border-color: var(--sb-base) !important;
+            box-shadow: 0 4px 12px rgba(37, 62, 66, 0.22);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- ==========================================
+         刊頭區域 (SimplyBook v2 風格：自定義溫暖大圖 + 品牌 Logo 卡片 + 導覽列)
+         ========================================== -->
+    <header class="bg-white border-b border-[#e8e2d9] shadow-2xs">
+        <!-- 刊頭自定義背景大圖 -->
+        <div class="relative h-52 sm:h-72 md:h-80 w-full overflow-hidden bg-[#253e42]">
+            <img id="headerBannerImg" src="static/uploads/default_banner.jpg" alt="門市刊頭圖片"
+                class="w-full h-full object-cover object-center transition-opacity duration-500">
+            <!-- 柔和暖色漸層遮罩，讓視覺自然不刺眼 -->
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/10"></div>
+
+            <!-- 刊頭底部：店家 Logo 與名稱 -->
+            <div class="absolute bottom-0 inset-x-0">
+                <div class="max-w-5xl mx-auto px-4 sm:px-6 pb-4 sm:pb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                    <div class="flex items-center gap-3.5 sm:gap-4">
+                        <!-- 店家自定義 Logo -->
+                        <div class="bg-white px-3.5 py-2.5 rounded-2xl shadow-lg border border-white/80 shrink-0 flex items-center justify-center">
+                            <img id="headerLogoImg" src="static/uploads/default_logo.png" alt="Logo"
+                                class="h-9 sm:h-12 w-auto object-contain max-w-[150px] sm:max-w-[190px]">
+                        </div>
+                        <div class="text-white drop-shadow-xs">
+                            <h1 id="storeNameTitle" class="text-xl sm:text-2xl font-bold tracking-wide">eReady 汐止康寧店</h1>
+                            <p id="storeSubtitle" class="text-xs sm:text-sm text-white/90 mt-0.5 font-normal">賞車試乘服務預約 ｜ 電動車維修保養預約</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 導覽選單列 (仿 SimplyBook v2 簡潔分頁) -->
+        <div class="max-w-5xl mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between">
+                <nav class="flex items-center gap-2 sm:gap-7 text-sm overflow-x-auto no-scrollbar">
+                    <button onclick="switchMainTab('book')" id="tabBtn-book"
+                        class="nav-tab-active py-3.5 px-2 whitespace-nowrap transition">
+                        立即預約
+                    </button>
+                    <button onclick="switchMainTab('lookup')" id="tabBtn-lookup"
+                        class="text-[#6e6a64] hover:text-[#253e42] py-3.5 px-2 whitespace-nowrap border-b-3 border-transparent transition">
+                        我的預約
+                    </button>
+                    <button onclick="switchMainTab('reviews')" id="tabBtn-reviews"
+                        class="text-[#6e6a64] hover:text-[#253e42] py-3.5 px-2 whitespace-nowrap border-b-3 border-transparent transition flex items-center gap-1">
+                        客戶評論 <span class="text-xs px-1.5 py-0.5 rounded-full bg-[#fdf4e7] text-[#b86b35] font-semibold">5.0 ★</span>
+                    </button>
+                    <button onclick="switchMainTab('info')" id="tabBtn-info"
+                        class="lg:hidden text-[#6e6a64] hover:text-[#253e42] py-3.5 px-2 whitespace-nowrap border-b-3 border-transparent transition">
+                        門市資訊
+                    </button>
+                </nav>
+
+                <!-- LINE 綁定溫馨小提示 (若有連結 LIFF 時顯示) -->
+                <div id="liffConnectedBadge" class="hidden sm:flex items-center gap-1.5 text-xs text-[#3b6e52] bg-[#eef7f1] px-3 py-1 rounded-full">
+                    <i class="fa-brands fa-line text-sm text-[#06C755]"></i>
+                    <span id="liffStatusText">LINE 預約通知已連結</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==========================================
+         主要內容區 (桌機版：左側預約主區 + 右側溫暖門市資訊欄；手機版：單欄流暢顯示)
+         ========================================== -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- 左側主內容區 (佔 8 欄) -->
+            <div class="lg:col-span-8 space-y-5">
+
+                <!-- ==========================================
+                     TAB 1: 立即預約
+                     ========================================== -->
+                <section id="tabContent-book" class="space-y-5">
+
+                    <!-- 柔和步驟麵包屑導引 -->
+                    <div id="bookingBreadcrumbs" class="warm-card rounded-2xl px-4 py-3 flex items-center justify-between text-xs sm:text-sm">
+                        <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            <button type="button" onclick="goToStep(1)" id="crumb-1" class="font-bold text-[#253e42] flex items-center gap-1.5">
+                                <span id="crumbDot-1" class="w-5 h-5 rounded-full bg-[#253e42] text-white text-xs flex items-center justify-center">1</span>
+                                <span>選擇服務項目</span>
+                            </button>
+                            <i class="fa-solid fa-angle-right text-[#c4bdb3] text-xs"></i>
+                            <button type="button" onclick="tryGoToStep(2)" id="crumb-2" class="text-[#8c857b] flex items-center gap-1.5">
+                                <span id="crumbDot-2" class="w-5 h-5 rounded-full bg-[#ece7df] text-[#6e6a64] text-xs flex items-center justify-center">2</span>
+                                <span>選擇日期與時間</span>
+                            </button>
+                            <i class="fa-solid fa-angle-right text-[#c4bdb3] text-xs"></i>
+                            <button type="button" onclick="tryGoToStep(3)" id="crumb-3" class="text-[#8c857b] flex items-center gap-1.5">
+                                <span id="crumbDot-3" class="w-5 h-5 rounded-full bg-[#ece7df] text-[#6e6a64] text-xs flex items-center justify-center">3</span>
+                                <span>填寫預約資料</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 1: 選擇服務項目 (SimplyBook 圖文卡片風格) -->
+                    <div id="wizardStep-1" class="space-y-4">
+                        <div id="servicesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <!-- JS 動態渲染含有自定義照片的服務卡片 -->
+                        </div>
+                    </div>
+
+                    <!-- STEP 2: 選擇預約日期與時段 -->
+                    <div id="wizardStep-2" class="hidden space-y-4">
+                        <!-- 已選服務摘要卡片 -->
+                        <div class="warm-card rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3 bg-[#fcfbf9]">
+                            <div class="flex items-center gap-3.5">
+                                <img id="step2ServiceThumb" src="static/uploads/service_maintenance.jpg" alt=""
+                                    class="w-14 h-14 rounded-xl object-cover border border-[#e5dfd5] shrink-0">
+                                <div>
+                                    <div class="text-xs text-[#8c857b]">已選擇服務</div>
+                                    <div id="step2ServiceName" class="text-base font-bold text-[#253e42]">維修保養</div>
+                                    <div id="leadTimeNoticeText" class="text-xs text-[#9a7b56] mt-0.5">
+                                        ※ 請於預約時段 2 小時前完成預約
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" onclick="goToStep(1)"
+                                class="text-xs font-medium text-[#5c574f] hover:text-[#253e42] bg-white px-3 py-1.5 rounded-xl border border-[#dcd5ca] transition shrink-0">
+                                更換服務
+                            </button>
+                        </div>
+
+                        <!-- 月曆與時段選擇區 -->
+                        <div class="warm-card rounded-2xl overflow-hidden">
+                            <!-- 月份切換標題 -->
+                            <div class="px-5 py-4 border-b border-[#f0ece4] flex items-center justify-between">
+                                <h3 class="text-base font-bold text-[#253e42]">請選擇預約日期</h3>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" onclick="changeCalendarMonth(-1)"
+                                        class="w-8 h-8 rounded-xl border border-[#e2dcd3] hover:bg-[#f8f6f2] flex items-center justify-center text-[#5c574f]">
+                                        <i class="fa-solid fa-chevron-left text-xs"></i>
+                                    </button>
+                                    <span id="calendarMonthLabel" class="text-sm font-bold text-[#2b2927] min-w-[100px] text-center">2026年 10月</span>
+                                    <button type="button" onclick="changeCalendarMonth(1)"
+                                        class="w-8 h-8 rounded-xl border border-[#e2dcd3] hover:bg-[#f8f6f2] flex items-center justify-center text-[#5c574f]">
+                                        <i class="fa-solid fa-chevron-right text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 月曆網格 -->
+                            <div class="p-4 sm:p-5">
+                                <div class="grid grid-cols-7 gap-1.5 text-center text-xs font-semibold text-[#8c857b] mb-2">
+                                    <div class="text-[#c27849]">週日</div>
+                                    <div>週一</div>
+                                    <div>週二</div>
+                                    <div>週三</div>
+                                    <div>週四</div>
+                                    <div>週五</div>
+                                    <div>週六</div>
+                                </div>
+                                <div id="calendarDaysGrid" class="grid grid-cols-7 gap-1.5 sm:gap-2">
+                                    <!-- JS 渲染月曆日期 -->
+                                </div>
+
+                                <div class="mt-4 pt-3 border-t border-[#f3efe8] flex flex-wrap items-center gap-5 text-xs text-[#7a746c]">
+                                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#253e42]"></span> 已選日期</span>
+                                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#4d8b6e]"></span> 尚有可預約時段</span>
+                                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#f3d4c2]"></span> 店休 / 休假日</span>
+                                </div>
+                            </div>
+
+                            <!-- 可預約時間點 -->
+                            <div class="p-5 bg-[#faf8f5] border-t border-[#ece7df]">
+                                <div class="flex items-center justify-between mb-3.5">
+                                    <h3 class="text-sm sm:text-base font-bold text-[#253e42]">選擇可預約時段</h3>
+                                    <span id="selectedDateBadge" class="text-xs font-semibold px-3 py-1 rounded-full bg-[#eae4dc] text-[#4a453e]">請先選擇日期</span>
+                                </div>
+
+                                <div id="slotsGridContainer" class="min-h-[80px]">
+                                    <!-- JS 渲染可預約時段按鈕 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: 填寫預約資料 -->
+                    <div id="wizardStep-3" class="hidden space-y-4">
+                        <!-- 已選服務與時段溫暖提示卡 -->
+                        <div class="warm-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 bg-[#fcfbf9]">
+                            <div class="flex items-center gap-3.5">
+                                <img id="step3ServiceThumb" src="static/uploads/service_maintenance.jpg" alt=""
+                                    class="w-14 h-14 rounded-xl object-cover border border-[#e5dfd5] shrink-0">
+                                <div>
+                                    <span id="step3ServiceBadge" class="text-xs font-semibold text-[#7a746c]">維修保養</span>
+                                    <div id="step3DateTimeText" class="text-base sm:text-lg font-bold text-[#253e42]">2026-10-20 (週二) 14:00</div>
+                                </div>
+                            </div>
+                            <button type="button" onclick="goToStep(2)"
+                                class="text-xs font-medium text-[#5c574f] hover:text-[#253e42] bg-white px-3 py-1.5 rounded-xl border border-[#dcd5ca] transition">
+                                更換時間
+                            </button>
+                        </div>
+
+                        <!-- 預約表單 -->
+                        <form id="bookingForm" onsubmit="submitBookingForm(event)" class="warm-card rounded-2xl p-5 sm:p-7 space-y-5">
+                            <h3 class="text-base font-bold text-[#253e42] pb-2.5 border-b border-[#f0ece4]">
+                                請填寫您的預約聯絡資訊
+                            </h3>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                        姓名 <span class="text-[#c27849]">*</span>
+                                    </label>
+                                    <input type="text" id="inputCustomerName" required placeholder="請輸入您的姓名"
+                                        class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                        聯絡電話 <span class="text-[#c27849]">*</span>
+                                    </label>
+                                    <input type="tel" id="inputCustomerPhone" required placeholder="例：0912345678"
+                                        class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                    電子郵件 <span class="text-[#c27849]">*</span>
+                                    <span class="text-xs text-[#8c857b] font-normal ml-1">（預約完成後將寄送確認通知給您）</span>
+                                </label>
+                                <input type="email" id="inputCustomerEmail" required placeholder="example@gmail.com"
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                            </div>
+
+                            <!-- 分支 A：【維修保養】專屬欄位 -->
+                            <div id="maintenanceFieldsSection" class="space-y-4 pt-3 border-t border-[#f0ece4]">
+                                <h4 class="text-sm font-bold text-[#253e42]">愛車資訊與保養需求</h4>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                            車牌號碼 <span class="text-[#c27849]">*</span>
+                                        </label>
+                                        <input type="text" id="inputLicensePlate" placeholder="例：MNP-1234"
+                                            class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm uppercase focus:outline-none focus:border-[#253e42]">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                            目前里程數 <span class="text-xs text-[#9c958b] font-normal">(選填)</span>
+                                        </label>
+                                        <input type="text" id="inputMileage" placeholder="例：5000"
+                                            class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                            車型 <span class="text-xs text-[#9c958b] font-normal">(選填)</span>
+                                        </label>
+                                        <input type="text" id="inputVehicleModel" placeholder="例：eReady / Gogoro"
+                                            class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                                    </div>
+                                </div>
+
+                                <!-- 需求選擇：1. 定期保養 2. 維修/查修 -->
+                                <div>
+                                    <label class="block text-sm font-medium text-[#4a453e] mb-2">
+                                        服務需求選擇 <span class="text-[#c27849]">*</span>
+                                    </label>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <label id="maintRadioCard-1" class="flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#253e42] bg-[#f4f8f8] cursor-pointer transition">
+                                            <input type="radio" name="maintenanceType" value="定期保養" checked onchange="onMaintenanceTypeChange()" class="mt-1 accent-[#253e42]">
+                                            <div>
+                                                <div class="text-sm font-bold text-[#253e42]">1. 定期保養</div>
+                                                <div class="text-xs text-[#6e6a64] mt-0.5">依里程進行例行性檢查、齒輪油更換、鍊條保養等</div>
+                                            </div>
+                                        </label>
+                                        <label id="maintRadioCard-2" class="flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#e2dcd3] hover:border-[#b8b0a4] cursor-pointer transition">
+                                            <input type="radio" name="maintenanceType" value="維修/查修" onchange="onMaintenanceTypeChange()" class="mt-1 accent-[#253e42]">
+                                            <div>
+                                                <div class="text-sm font-bold text-[#2b2927]">2. 維修/查修 (輸入需求)</div>
+                                                <div class="text-xs text-[#6e6a64] mt-0.5">車輛異常檢測、零件更換、異音或故障查修</div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="repairNotesContainer">
+                                    <label id="repairNotesLabel" class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                        補充備註說明 <span class="text-xs text-[#9c958b] font-normal">(選填)</span>
+                                    </label>
+                                    <textarea id="inputRepairNotes" rows="3" placeholder="如有其他保養事項或車況說明，歡迎在此填寫..."
+                                        class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- 分支 B：【賞車試乘】專屬欄位 -->
+                            <div id="testRideFieldsSection" class="hidden space-y-4 pt-3 border-t border-[#f0ece4]">
+                                <div>
+                                    <label class="block text-sm font-medium text-[#4a453e] mb-2">
+                                        請選擇欲試乘之車種 <span class="text-[#c27849]">*</span>
+                                    </label>
+                                    <select id="selectTestRideModel" onchange="syncTestRideCardSelection(this.value)"
+                                        class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm font-medium focus:outline-none focus:border-[#253e42] mb-3">
+                                        <option value="">-- 請選擇試乘車種 --</option>
+                                    </select>
+
+                                    <div id="testRideModelsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                        <!-- JS 動態載入試乘車種按鈕 -->
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-[#4a453e] mb-1.5">
+                                        備註事項 <span class="text-xs text-[#9c958b] font-normal">(選填)</span>
+                                    </label>
+                                    <input type="text" id="inputTestRideNotes" placeholder="如有想了解的購車方案或問題可先填寫"
+                                        class="w-full px-3.5 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                                </div>
+                            </div>
+
+                            <!-- 錯誤提示 -->
+                            <div id="formErrorAlert" class="hidden p-3.5 rounded-xl bg-[#fff3ed] border border-[#f3cbb8] text-[#9e4720] text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span id="formErrorText"></span>
+                            </div>
+
+                            <!-- 送出按鈕 -->
+                            <div class="pt-2 flex flex-col sm:flex-row gap-3">
+                                <button type="button" onclick="goToStep(2)"
+                                    class="sm:w-1/3 py-3 px-4 rounded-xl border border-[#dcd5ca] text-[#5c574f] font-medium text-sm hover:bg-[#f8f6f2] transition">
+                                    返回選擇時間
+                                </button>
+                                <button type="submit" id="submitBookingBtn"
+                                    class="flex-1 py-3.5 px-6 rounded-xl btn-primary-warm font-bold text-base flex items-center justify-center gap-2">
+                                    確認預約
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- STEP 4: 預約完成畫面 -->
+                    <div id="wizardStep-4" class="hidden">
+                        <div class="warm-card rounded-2xl overflow-hidden">
+                            <div class="bg-[#253e42] p-6 sm:p-8 text-white text-center">
+                                <div class="w-14 h-14 rounded-full bg-white/15 mx-auto flex items-center justify-center mb-3">
+                                    <i class="fa-solid fa-check text-2xl"></i>
+                                </div>
+                                <h2 class="text-xl sm:text-2xl font-bold">我們已收到您的預約！</h2>
+                                <p class="text-xs sm:text-sm text-white/80 mt-1">預約確認通知已發送，期待您的蒞臨</p>
+                            </div>
+
+                            <div class="p-5 sm:p-7 space-y-5">
+                                <div id="bookingReceiptBox" class="bg-[#faf8f5] rounded-2xl p-4 sm:p-5 border border-[#ece7df] space-y-2.5 text-sm">
+                                    <!-- JS 填入預約明細 -->
+                                </div>
+
+                                <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                    <button type="button" onclick="resetAndBookAnother()"
+                                        class="flex-1 py-3 px-4 rounded-xl btn-primary-warm font-bold text-sm">
+                                        返回預約首頁
+                                    </button>
+                                    <button type="button" onclick="switchMainTab('lookup')"
+                                        class="flex-1 py-3 px-4 rounded-xl border border-[#dcd5ca] hover:bg-[#f8f6f2] text-[#4a453e] font-medium text-sm transition">
+                                        查看我的預約
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- ==========================================
+                     TAB 2: 我的預約 (查詢/取消)
+                     ========================================== -->
+                <section id="tabContent-lookup" class="hidden space-y-4">
+                    <div class="warm-card rounded-2xl p-5 sm:p-6">
+                        <h2 class="text-lg font-bold text-[#253e42] mb-1">查詢我的預約紀錄</h2>
+                        <p class="text-xs sm:text-sm text-[#7a746c] mb-4">請輸入您預約時留下的「手機號碼」、「車牌號碼」或「預約單號」</p>
+
+                        <form onsubmit="handleLookupBookings(event)" class="flex gap-2.5">
+                            <input type="text" id="lookupQueryInput" required placeholder="請輸入手機號碼 (例 0912345678) 或車牌號碼"
+                                class="flex-1 px-4 py-2.5 rounded-xl border border-[#dcd5ca] bg-[#fdfcfb] text-sm focus:outline-none focus:border-[#253e42]">
+                            <button type="submit" class="px-6 py-2.5 rounded-xl btn-primary-warm font-bold text-sm shrink-0">
+                                查詢
+                            </button>
+                        </form>
+                    </div>
+
+                    <div id="lookupResultsContainer" class="space-y-3"></div>
+                </section>
+
+                <!-- ==========================================
+                     TAB 3: 客戶評論 (取自原站真實評論)
+                     ========================================== -->
+                <section id="tabContent-reviews" class="hidden space-y-4">
+                    <div class="warm-card rounded-2xl p-5 sm:p-6 space-y-4">
+                        <div class="flex items-center justify-between border-b border-[#f0ece4] pb-3">
+                            <div>
+                                <h2 class="text-lg font-bold text-[#253e42]">車主服務評價</h2>
+                                <p class="text-xs text-[#7a746c] mt-0.5">感謝每一位車主的信任與支持</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xl font-bold text-[#c27849]">5.0 ★★★★★</div>
+                                <div class="text-[11px] text-[#8c857b]">100% 滿意推薦</div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 text-sm">
+                            <div class="p-4 rounded-xl bg-[#faf8f5] border border-[#ece7df] space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-[#253e42]">Mike Chen — 新車第一次保養</span>
+                                    <span class="text-xs text-[#c27849]">★★★★★</span>
+                                </div>
+                                <p class="text-[#5c574f] text-xs sm:text-sm leading-relaxed">新車第一次保養，預約保養很方便，店長店員服務很好，技師很專業。</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-[#faf8f5] border border-[#ece7df] space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-[#253e42]">Zack Chen — Gogoro 保養</span>
+                                    <span class="text-xs text-[#c27849]">★★★★★</span>
+                                </div>
+                                <p class="text-[#5c574f] text-xs sm:text-sm leading-relaxed">細心檢查，服務好，車輛檢查中有突發狀況要修理/更換，會馬上打電話告知修理零件/價格，優良的店家。</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-[#faf8f5] border border-[#ece7df] space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-[#253e42]">張維浚 — 專業</span>
+                                    <span class="text-xs text-[#c27849]">★★★★★</span>
+                                </div>
+                                <p class="text-[#5c574f] text-xs sm:text-sm leading-relaxed">店長很親切，技師非常專業。推薦來保養及購買新車！</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-[#faf8f5] border border-[#ece7df] space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-[#253e42]">Hala Chen — 21000公里小保養</span>
+                                    <span class="text-xs text-[#c27849]">★★★★★</span>
+                                </div>
+                                <p class="text-[#5c574f] text-xs sm:text-sm leading-relaxed">技師保養完後，技師很仔細用心解說保養項目，店長跟技師非常親切。</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 手機版專用：門市資訊分頁 -->
+                <section id="tabContent-info" class="hidden lg:hidden space-y-4">
+                    <div id="mobileStoreSidebarClone"></div>
+                </section>
+
+            </div>
+
+            <!-- ==========================================
+                 右側門市資訊欄 (仿 SimplyBook v2 側邊資訊卡，桌機常駐顯示)
+                 ========================================== -->
+            <aside id="desktopStoreSidebar" class="hidden lg:block lg:col-span-4 space-y-5">
+                <div id="storeSidebarCard" class="warm-card rounded-2xl p-5 space-y-4">
+                    <div class="border-b border-[#f0ece4] pb-3">
+                        <h3 class="text-base font-bold text-[#253e42] flex items-center gap-2">
+                            <i class="fa-solid fa-store text-[#c27849]"></i> 門市資訊
+                        </h3>
+                    </div>
+
+                    <div id="storeDescriptionBlock" class="text-xs sm:text-sm text-[#5c574f] whitespace-pre-line leading-relaxed"></div>
+
+                    <div class="space-y-2.5 pt-2 border-t border-[#f0ece4] text-xs sm:text-sm">
+                        <a id="storeMapLink" href="https://www.google.com/maps/search/?api=1&query=新北市汐止區康寧街470號" target="_blank"
+                            class="flex items-start gap-2.5 text-[#4a453e] hover:text-[#253e42] transition">
+                            <i class="fa-solid fa-location-dot text-[#c27849] mt-1 w-4 text-center"></i>
+                            <span id="storeAddressText" class="underline decoration-[#d5cec4] underline-offset-4">新北市汐止區康寧街470號</span>
+                        </a>
+                        <a id="storePhoneLink" href="tel:02-2695-1112"
+                            class="flex items-center gap-2.5 text-[#4a453e] hover:text-[#253e42] transition">
+                            <i class="fa-solid fa-phone text-[#4d8b6e] w-4 text-center"></i>
+                            <span id="storePhoneText" class="font-medium">02-2695-1112</span>
+                        </a>
+                    </div>
+
+                    <!-- 營業時間列表 -->
+                    <div class="pt-3 border-t border-[#f0ece4]">
+                        <h4 class="text-xs font-bold text-[#7a746c] uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                            <i class="fa-regular fa-clock"></i> 營業時間
+                        </h4>
+                        <div id="infoBusinessHoursList" class="space-y-1.5 text-xs">
+                            <!-- JS 動態載入營業時間 -->
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+    </main>
+
+    <!-- 底部溫暖頁尾 -->
+    <footer class="bg-white border-t border-[#e8e2d9] py-5 px-4 text-xs text-[#8c857b] mt-8">
+        <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>© 2026 <span id="footerStoreName" class="font-semibold text-[#5c574f]">eReady 汐止康寧店</span> ｜ 線上預約服務</div>
+            <div class="flex items-center gap-4">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-[#8c857b] hover:text-[#253e42] select-none">
+                    <input type="checkbox" id="mockLiffToggle" onchange="toggleMockLiff(this.checked)" class="rounded accent-[#253e42]">
+                    <span>模擬 LINE 客戶推播測試</span>
+                </label>
+                <a href="admin.html" class="text-[#6e6a64] hover:text-[#253e42] font-medium flex items-center gap-1">
+                    <i class="fa-solid fa-gear text-[11px]"></i> 店家管理後台
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==========================================
+         Frontend JavaScript Logic
+         ========================================== -->
+    <script>
+        let appConfig = {
+            store_info: {},
+            booking_rules: {},
+            business_hours: {},
+            services: [],
+            test_ride_models: [],
+            upcoming_holidays: [],
+            line_liff_id: ""
+        };
+
+        let bookingState = {
+            step: 1,
+            selectedService: null,
+            selectedDate: "",
+            selectedTime: "",
+            lineUserId: "",
+            lineDisplayName: ""
+        };
+
+        let calendarState = {
+            year: new Date().getFullYear(),
+            month: new Date().getMonth() + 1,
+            daysMap: {}
+        };
+
+        const WEEKDAY_LABELS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+
+        window.addEventListener("DOMContentLoaded", async () => {
+            await loadPublicConfig();
+            await initLineLiff();
+            await loadCalendarMonth(calendarState.year, calendarState.month);
+        });
+
+        async function loadPublicConfig() {
+            try {
+                const res = await fetch("/api/public/config");
+                const data = await res.json();
+                if (!data.ok) return;
+                appConfig = data;
+
+                const info = data.store_info || {};
+                document.getElementById("storeNameTitle").textContent = info.name || "eReady 汐止康寧店";
+                document.getElementById("footerStoreName").textContent = info.name || "eReady 汐止康寧店";
+                document.getElementById("storeSubtitle").textContent = info.subtitle || "";
+                document.getElementById("storeAddressText").textContent = info.address || "";
+                document.getElementById("storeMapLink").href = info.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(info.address || "")}`;
+                document.getElementById("storePhoneText").textContent = info.phone || "";
+                document.getElementById("storePhoneLink").href = `tel:${info.phone || ""}`;
+                document.getElementById("storeDescriptionBlock").textContent = info.description || "";
+
+                // 刊頭自定義圖片與 Logo
+                if (info.banner_image) {
+                    document.getElementById("headerBannerImg").src = info.banner_image;
+                }
+                if (info.logo_image) {
+                    document.getElementById("headerLogoImg").src = info.logo_image;
+                }
+
+                // 預約規則提示
+                const rules = data.booking_rules || {};
+                const minHours = rules.min_lead_hours ?? 2;
+                document.getElementById("leadTimeNoticeText").textContent =
+                    `※ 為替您準備完善服務，請於預約時段 ${minHours} 小時前完成預約`;
+
+                renderServicesList();
+                renderTestRideModels();
+                renderInfoBusinessHours();
+
+                // 複製門市資訊至手機版分頁
+                const sidebarCard = document.getElementById("storeSidebarCard");
+                const mobileClone = document.getElementById("mobileStoreSidebarClone");
+                if (sidebarCard && mobileClone) {
+                    mobileClone.innerHTML = sidebarCard.outerHTML;
+                }
+            } catch (err) {
+                console.error("Failed to load config:", err);
+            }
+        }
+
+        async function initLineLiff() {
+            const liffId = (appConfig.line_liff_id || "").trim();
+            if (!liffId) return;
+            try {
+                await liff.init({ liffId });
+                if (liff.isLoggedIn()) {
+                    const profile = await liff.getProfile();
+                    bookingState.lineUserId = profile.userId;
+                    bookingState.lineDisplayName = profile.displayName;
+                    const badge = document.getElementById("liffConnectedBadge");
+                    badge.classList.remove("hidden");
+                    document.getElementById("liffStatusText").textContent = `Hi, ${profile.displayName}`;
+                    const nameInput = document.getElementById("inputCustomerName");
+                    if (nameInput && !nameInput.value) {
+                        nameInput.value = profile.displayName;
+                    }
+                }
+            } catch (e) {
+                console.warn("LIFF init:", e);
+            }
+        }
+
+        function toggleMockLiff(checked) {
+            const badge = document.getElementById("liffConnectedBadge");
+            if (checked) {
+                bookingState.lineUserId = "MOCK_LINE_USER_888";
+                bookingState.lineDisplayName = "LINE測試車主";
+                badge.classList.remove("hidden");
+                document.getElementById("liffStatusText").textContent = "已模擬 LINE 官方帳號開啟";
+            } else {
+                bookingState.lineUserId = "";
+                bookingState.lineDisplayName = "";
+                badge.classList.add("hidden");
+            }
+        }
+
+        function renderServicesList() {
+            const container = document.getElementById("servicesContainer");
+            const services = appConfig.services || [];
+
+            if (services.length === 0) {
+                container.innerHTML = `<div class="col-span-2 p-8 warm-card rounded-2xl text-center text-[#8c857b]">目前尚無開放的服務項目</div>`;
+                return;
+            }
+
+            container.innerHTML = services.map(s => {
+                const isMaint = s.form_type === "maintenance";
+                const defaultImg = isMaint ? "static/uploads/service_maintenance.jpg" : "static/uploads/service_test_ride.jpg";
+                const imgUrl = s.image_url || defaultImg;
+
+                return `
+                <div onclick="selectService(${s.id})"
+                    class="group warm-card rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between">
+                    <div>
+                        <div class="relative h-48 sm:h-52 w-full overflow-hidden bg-[#ebe6df]">
+                            <img src="${imgUrl}" alt="${s.name}"
+                                onerror="this.src='${defaultImg}'"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                            <div class="absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-medium bg-black/55 text-white backdrop-blur-xs">
+                                <i class="fa-regular fa-clock mr-1"></i>${s.duration_minutes || 60} 分鐘
+                            </div>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-lg font-bold text-[#253e42] group-hover:text-[#1a2d30] transition">${s.name}</h3>
+                            <p class="text-xs sm:text-sm text-[#6e6a64] leading-relaxed mt-2 line-clamp-4">${s.description || ""}</p>
+                        </div>
+                    </div>
+                    <div class="px-5 pb-5 pt-1">
+                        <button type="button" class="w-full py-2.5 px-4 rounded-xl btn-primary-warm text-sm font-bold text-center">
+                            立即預約
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join("");
+        }
+
+        function renderTestRideModels() {
+            const models = appConfig.test_ride_models || [];
+            const selectEl = document.getElementById("selectTestRideModel");
+            const gridEl = document.getElementById("testRideModelsGrid");
+
+            selectEl.innerHTML = `<option value="">-- 請選擇試乘車種 --</option>` +
+                models.map(m => `<option value="${m.name}">${m.name}</option>`).join("");
+
+            gridEl.innerHTML = models.map(m => {
+                const imgSrc = m.image_url || "static/uploads/service_test_ride.jpg";
+                return `
+                <button type="button" onclick="pickTestRideModel('${m.name.replace(/'/g, "\\'")}')"
+                    data-model-name="${m.name}"
+                    class="test-ride-card-btn group rounded-xl border border-[#dcd5ca] hover:border-[#253e42] text-left transition overflow-hidden flex flex-col bg-[#faf8f5] relative">
+                    <div class="relative h-28 sm:h-32 w-full bg-[#eee9df] overflow-hidden">
+                        <img src="${imgSrc}" alt="${m.name}"
+                            onerror="this.src='static/uploads/service_test_ride.jpg'"
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        <span class="test-ride-check-badge hidden absolute top-2 right-2 w-6 h-6 rounded-full bg-[#253e42] text-white text-xs items-center justify-center shadow-sm">
+                            <i class="fa-solid fa-check"></i>
+                        </span>
+                    </div>
+                    <div class="p-2.5 sm:p-3 flex flex-col justify-between flex-1">
+                        <span class="text-[10px] font-medium text-[#8c857b]">${m.brand || "試乘車款"}</span>
+                        <span class="text-xs sm:text-sm font-bold text-[#2b2927] mt-0.5 leading-snug">${m.name}</span>
+                    </div>
+                </button>
+                `;
+            }).join("");
+        }
+
+        function pickTestRideModel(modelName) {
+            const selectEl = document.getElementById("selectTestRideModel");
+            selectEl.value = modelName;
+            syncTestRideCardSelection(modelName);
+        }
+
+        function syncTestRideCardSelection(modelName) {
+            document.querySelectorAll(".test-ride-card-btn").forEach(btn => {
+                const badge = btn.querySelector(".test-ride-check-badge");
+                if (btn.getAttribute("data-model-name") === modelName) {
+                    btn.className = "test-ride-card-btn group rounded-xl border-2 border-[#253e42] bg-[#f2f7f7] text-left transition overflow-hidden flex flex-col relative shadow-xs";
+                    if (badge) {
+                        badge.classList.remove("hidden");
+                        badge.classList.add("flex");
+                    }
+                } else {
+                    btn.className = "test-ride-card-btn group rounded-xl border border-[#dcd5ca] hover:border-[#253e42] text-left transition overflow-hidden flex flex-col bg-[#faf8f5] relative";
+                    if (badge) {
+                        badge.classList.add("hidden");
+                        badge.classList.remove("flex");
+                    }
+                }
+            });
+        }
+
+        function selectService(serviceId) {
+            const s = (appConfig.services || []).find(item => item.id === serviceId);
+            if (!s) return;
+            bookingState.selectedService = s;
+
+            const isMaint = s.form_type === "maintenance";
+            const defaultImg = isMaint ? "static/uploads/service_maintenance.jpg" : "static/uploads/service_test_ride.jpg";
+            const imgUrl = s.image_url || defaultImg;
+
+            document.getElementById("step2ServiceName").textContent = s.name;
+            document.getElementById("step2ServiceThumb").src = imgUrl;
+            document.getElementById("step3ServiceBadge").textContent = s.name;
+            document.getElementById("step3ServiceThumb").src = imgUrl;
+
+            if (isMaint) {
+                document.getElementById("maintenanceFieldsSection").classList.remove("hidden");
+                document.getElementById("testRideFieldsSection").classList.add("hidden");
+            } else {
+                document.getElementById("maintenanceFieldsSection").classList.add("hidden");
+                document.getElementById("testRideFieldsSection").classList.remove("hidden");
+            }
+
+            goToStep(2);
+
+            if (!bookingState.selectedDate) {
+                autoSelectFirstAvailableDate();
+            }
+        }
+
+        async function loadCalendarMonth(year, month) {
+            calendarState.year = year;
+            calendarState.month = month;
+            document.getElementById("calendarMonthLabel").textContent = `${year}年 ${month}月`;
+
+            try {
+                const res = await fetch(`/api/public/calendar-month?year=${year}&month=${month}`);
+                const data = await res.json();
+                if (data.ok) {
+                    calendarState.daysMap = data.days || {};
+                    renderCalendarGrid();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function changeCalendarMonth(delta) {
+            let y = calendarState.year;
+            let m = calendarState.month + delta;
+            if (m < 1) { m = 12; y--; }
+            if (m > 12) { m = 1; y++; }
+            loadCalendarMonth(y, m);
+        }
+
+        function renderCalendarGrid() {
+            const grid = document.getElementById("calendarDaysGrid");
+            const year = calendarState.year;
+            const month = calendarState.month;
+
+            const firstDayWeek = new Date(year, month - 1, 1).getDay();
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            let html = "";
+            for (let i = 0; i < firstDayWeek; i++) {
+                html += `<div></div>`;
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                const info = calendarState.daysMap[dateStr] || { status: "closed", available_count: 0, closed_reason: "" };
+                const isSelected = bookingState.selectedDate === dateStr;
+
+                if (info.status === "open") {
+                    const selectedCls = isSelected
+                        ? "cal-day-selected"
+                        : "bg-white text-[#2b2927] border-[#e2dcd3]";
+                    const dotColor = isSelected ? "bg-white/90" : "bg-[#4d8b6e]";
+                    html += `
+                        <button type="button" onclick="selectDate('${dateStr}')"
+                            class="cal-day py-2 px-1 rounded-xl border ${selectedCls} flex flex-col items-center justify-center min-h-[52px]">
+                            <span class="text-sm font-bold">${d}</span>
+                            <span class="w-1.5 h-1.5 rounded-full ${dotColor} mt-1"></span>
+                        </button>
+                    `;
+                } else if (info.status === "closed") {
+                    const shortReason = (info.closed_reason || "店休").replace("例行", "").slice(0, 3);
+                    html += `
+                        <button type="button" disabled title="${info.closed_reason || '店休'}"
+                            class="cal-day py-2 px-1 rounded-xl border border-[#f5e3d8] bg-[#fff3ed] text-[#c49a84] flex flex-col items-center justify-center min-h-[52px] cursor-not-allowed">
+                            <span class="text-sm">${d}</span>
+                            <span class="text-[10px] mt-0.5 truncate max-w-full">${shortReason}</span>
+                        </button>
+                    `;
+                } else {
+                    html += `
+                        <button type="button" onclick="selectDate('${dateStr}')"
+                            class="cal-day py-2 px-1 rounded-xl border border-[#ece7df] bg-[#f5f2ed] text-[#b0a99f] flex flex-col items-center justify-center min-h-[52px]">
+                            <span class="text-sm">${d}</span>
+                            <span class="text-[10px] mt-0.5">額滿</span>
+                        </button>
+                    `;
+                }
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function autoSelectFirstAvailableDate() {
+            const dates = Object.keys(calendarState.daysMap).sort();
+            const firstOpen = dates.find(d => calendarState.daysMap[d].status === "open");
+            if (firstOpen) {
+                selectDate(firstOpen);
+            }
+        }
+
+        async function selectDate(dateStr) {
+            bookingState.selectedDate = dateStr;
+            bookingState.selectedTime = "";
+            renderCalendarGrid();
+
+            const dt = new Date(dateStr + "T00:00:00");
+            const wd = WEEKDAY_LABELS[dt.getDay()];
+            document.getElementById("selectedDateBadge").textContent = `${dateStr} (${wd})`;
+
+            const container = document.getElementById("slotsGridContainer");
+            container.innerHTML = `<div class="py-6 text-center text-xs text-[#8c857b]">正在載入可預約時段...</div>`;
+
+            try {
+                const res = await fetch(`/api/public/slots?date=${dateStr}`);
+                const data = await res.json();
+                if (!data.ok || !data.is_open_day) {
+                    container.innerHTML = `
+                        <div class="p-4 rounded-xl bg-[#fff3ed] border border-[#f5d9c8] text-[#9e5531] text-xs text-center">
+                            本日為非營業日或店休（${data.closed_reason || "休息"}）
+                        </div>`;
+                    return;
+                }
+
+                const slots = data.slots || [];
+                if (slots.length === 0) {
+                    container.innerHTML = `<div class="p-4 text-center text-xs text-[#8c857b]">本日無開放預約時段</div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                        ${slots.map(s => {
+                            if (s.available) {
+                                return `
+                                <button type="button" onclick="selectTimeSlot('${s.time}')"
+                                    data-slot-time="${s.time}"
+                                    class="slot-btn py-3 px-3 rounded-xl border border-[#dcd5ca] bg-white hover:border-[#253e42] text-center transition">
+                                    <div class="text-sm sm:text-base font-bold text-[#253e42]">${s.time}</div>
+                                </button>
+                                `;
+                            } else {
+                                return `
+                                <button type="button" disabled
+                                    class="py-2.5 px-2 rounded-xl border border-[#ece7df] bg-[#f3efe9] text-[#b5aea4] text-center cursor-not-allowed">
+                                    <div class="text-sm line-through">${s.time}</div>
+                                    <div class="text-[10px] mt-0.5 truncate">${s.reason || "已滿"}</div>
+                                </button>
+                                `;
+                            }
+                        }).join("")}
+                    </div>
+                `;
+            } catch (e) {
+                container.innerHTML = `<div class="p-4 text-center text-xs text-[#c27849]">載入時段失敗，請重試</div>`;
+            }
+        }
+
+        function selectTimeSlot(timeStr) {
+            bookingState.selectedTime = timeStr;
+            document.querySelectorAll(".slot-btn").forEach(btn => {
+                if (btn.getAttribute("data-slot-time") === timeStr) {
+                    btn.classList.add("slot-pill-selected");
+                } else {
+                    btn.classList.remove("slot-pill-selected");
+                }
+            });
+
+            const dt = new Date(bookingState.selectedDate + "T00:00:00");
+            const wd = WEEKDAY_LABELS[dt.getDay()];
+            document.getElementById("step3DateTimeText").textContent = `${bookingState.selectedDate} (${wd}) ${timeStr}`;
+
+            setTimeout(() => goToStep(3), 140);
+        }
+
+        function onMaintenanceTypeChange() {
+            const selected = document.querySelector('input[name="maintenanceType"]:checked')?.value || "定期保養";
+            const card1 = document.getElementById("maintRadioCard-1");
+            const card2 = document.getElementById("maintRadioCard-2");
+            const label = document.getElementById("repairNotesLabel");
+            const textarea = document.getElementById("inputRepairNotes");
+
+            if (selected === "維修/查修") {
+                card2.className = "flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#253e42] bg-[#f4f8f8] cursor-pointer transition";
+                card1.className = "flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#e2dcd3] hover:border-[#b8b0a4] cursor-pointer transition";
+                label.innerHTML = `維修/查修需求說明 <span class="text-[#c27849]">* (必填)</span>`;
+                textarea.required = true;
+                textarea.placeholder = "請描述您的車輛狀況或維修需求（例如：煞車異音、電門異常、傳動檢查、更換輪胎等）";
+                textarea.focus();
+            } else {
+                card1.className = "flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#253e42] bg-[#f4f8f8] cursor-pointer transition";
+                card2.className = "flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#e2dcd3] hover:border-[#b8b0a4] cursor-pointer transition";
+                label.innerHTML = `補充備註說明 <span class="text-xs text-[#9c958b] font-normal">(選填)</span>`;
+                textarea.required = false;
+                textarea.placeholder = "如有其他保養事項或車況說明，歡迎在此填寫...";
+            }
+        }
+
+        function tryGoToStep(targetStep) {
+            if (targetStep === 2 && !bookingState.selectedService) return;
+            if (targetStep === 3 && (!bookingState.selectedService || !bookingState.selectedDate || !bookingState.selectedTime)) return;
+            goToStep(targetStep);
+        }
+
+        function goToStep(stepNum) {
+            bookingState.step = stepNum;
+            [1, 2, 3, 4].forEach(n => {
+                const el = document.getElementById(`wizardStep-${n}`);
+                if (el) el.classList.toggle("hidden", n !== stepNum);
+            });
+
+            document.getElementById("bookingBreadcrumbs").classList.toggle("hidden", stepNum === 4);
+
+            [1, 2, 3].forEach(n => {
+                const btn = document.getElementById(`crumb-${n}`);
+                const dot = document.getElementById(`crumbDot-${n}`);
+                if (!btn || !dot) return;
+                if (n <= stepNum) {
+                    btn.className = "font-bold text-[#253e42] flex items-center gap-1.5";
+                    dot.className = "w-5 h-5 rounded-full bg-[#253e42] text-white text-xs flex items-center justify-center";
+                } else {
+                    btn.className = "text-[#8c857b] flex items-center gap-1.5";
+                    dot.className = "w-5 h-5 rounded-full bg-[#ece7df] text-[#6e6a64] text-xs flex items-center justify-center";
+                }
+            });
+
+            document.getElementById("formErrorAlert").classList.add("hidden");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        async function submitBookingForm(e) {
+            e.preventDefault();
+            const errBox = document.getElementById("formErrorAlert");
+            const errText = document.getElementById("formErrorText");
+            errBox.classList.add("hidden");
+
+            const s = bookingState.selectedService;
+            if (!s) return;
+
+            const isMaint = s.form_type === "maintenance";
+            const payload = {
+                service_id: s.id,
+                booking_date: bookingState.selectedDate,
+                booking_time: bookingState.selectedTime,
+                customer_name: document.getElementById("inputCustomerName").value.trim(),
+                customer_phone: document.getElementById("inputCustomerPhone").value.trim(),
+                customer_email: document.getElementById("inputCustomerEmail").value.trim(),
+                line_user_id: bookingState.lineUserId,
+                line_display_name: bookingState.lineDisplayName
+            };
+
+            if (isMaint) {
+                const plate = document.getElementById("inputLicensePlate").value.trim().toUpperCase();
+                const mileage = document.getElementById("inputMileage").value.trim();
+                const vModel = document.getElementById("inputVehicleModel").value.trim();
+                const mType = document.querySelector('input[name="maintenanceType"]:checked')?.value || "定期保養";
+                const notes = document.getElementById("inputRepairNotes").value.trim();
+
+                if (!plate) {
+                    errText.textContent = "請填寫車牌號碼";
+                    errBox.classList.remove("hidden");
+                    return;
+                }
+                if (mType === "維修/查修" && !notes) {
+                    errText.textContent = "選擇「維修/查修」時，請填寫您的維修或查修需求說明";
+                    errBox.classList.remove("hidden");
+                    return;
+                }
+                payload.license_plate = plate;
+                payload.mileage = mileage;
+                payload.vehicle_model = vModel;
+                payload.maintenance_type = mType;
+                payload.repair_notes = notes;
+            } else {
+                const testModel = document.getElementById("selectTestRideModel").value.trim();
+                const testNotes = document.getElementById("inputTestRideNotes").value.trim();
+                if (!testModel) {
+                    errText.textContent = "請選擇欲試乘的車種";
+                    errBox.classList.remove("hidden");
+                    return;
+                }
+                payload.test_ride_model = testModel;
+                payload.repair_notes = testNotes;
+            }
+
+            const btn = document.getElementById("submitBookingBtn");
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 預約送出中...`;
+
+            try {
+                const res = await fetch("/api/public/bookings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+
+                if (!data.ok) {
+                    errText.textContent = data.error || "預約失敗，請檢查欄位或重試";
+                    errBox.classList.remove("hidden");
+                    return;
+                }
+
+                renderBookingConfirmation(data.booking);
+                await loadCalendarMonth(calendarState.year, calendarState.month);
+                goToStep(4);
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                errText.textContent = "網路連線異常，請稍後再試";
+                errBox.classList.remove("hidden");
+            }
+        }
+
+        function renderBookingConfirmation(b) {
+            const isMaint = b.form_type === "maintenance";
+            const receiptBox = document.getElementById("bookingReceiptBox");
+
+            let extraHtml = "";
+            if (isMaint) {
+                extraHtml = `
+                    <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                        <span class="text-[#7a746c]">車牌號碼</span>
+                        <span class="font-bold text-[#2b2927]">${b.license_plate}</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                        <span class="text-[#7a746c]">里程數 / 車型</span>
+                        <span class="text-[#2b2927]">${b.mileage || "未填寫"} / ${b.vehicle_model || "未填寫"}</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                        <span class="text-[#7a746c]">服務需求</span>
+                        <span class="font-bold text-[#253e42]">${b.maintenance_type}</span>
+                    </div>
+                    ${b.repair_notes ? `
+                    <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                        <span class="text-[#7a746c]">需求說明</span>
+                        <span class="text-[#2b2927] text-right max-w-[65%] break-words">${b.repair_notes}</span>
+                    </div>` : ""}
+                `;
+            } else {
+                extraHtml = `
+                    <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                        <span class="text-[#7a746c]">試乘車種</span>
+                        <span class="font-bold text-[#253e42]">${b.test_ride_model}</span>
+                    </div>
+                    ${b.repair_notes ? `
+                    <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                        <span class="text-[#7a746c]">備註事項</span>
+                        <span class="text-[#2b2927]">${b.repair_notes}</span>
+                    </div>` : ""}
+                `;
+            }
+
+            receiptBox.innerHTML = `
+                <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                    <span class="text-[#7a746c]">預約單號</span>
+                    <span class="font-bold text-[#253e42]">${b.booking_no}</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                    <span class="text-[#7a746c]">預約項目</span>
+                    <span class="font-bold text-[#2b2927]">${b.service_name}</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                    <span class="text-[#7a746c]">預約時間</span>
+                    <span class="font-bold text-[#c27849]">${b.booking_date} ${b.booking_time}</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                    <span class="text-[#7a746c]">預約人姓名</span>
+                    <span class="text-[#2b2927]">${b.customer_name}</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-[#ece7df]">
+                    <span class="text-[#7a746c]">聯絡電話</span>
+                    <span class="text-[#2b2927]">${b.customer_phone}</span>
+                </div>
+                ${extraHtml}
+            `;
+        }
+
+        function resetAndBookAnother() {
+            bookingState.selectedDate = "";
+            bookingState.selectedTime = "";
+            document.getElementById("bookingForm").reset();
+            onMaintenanceTypeChange();
+            goToStep(1);
+        }
+
+        function switchMainTab(tabName) {
+            ["book", "lookup", "reviews", "info"].forEach(t => {
+                const sec = document.getElementById(`tabContent-${t}`);
+                if (sec) sec.classList.toggle("hidden", t !== tabName);
+                const btn = document.getElementById(`tabBtn-${t}`);
+                if (btn) {
+                    if (t === tabName) {
+                        btn.className = (t === "info" ? "lg:hidden " : "") + "nav-tab-active py-3.5 px-2 whitespace-nowrap transition flex items-center gap-1";
+                    } else {
+                        btn.className = (t === "info" ? "lg:hidden " : "") + "text-[#6e6a64] hover:text-[#253e42] py-3.5 px-2 whitespace-nowrap border-b-3 border-transparent transition flex items-center gap-1";
+                    }
+                }
+            });
+        }
+
+        async function handleLookupBookings(e) {
+            e.preventDefault();
+            const q = document.getElementById("lookupQueryInput").value.trim();
+            if (!q) return;
+
+            const container = document.getElementById("lookupResultsContainer");
+            container.innerHTML = `<div class="p-6 text-center text-[#8c857b] text-sm">查詢中...</div>`;
+
+            try {
+                const res = await fetch(`/api/public/bookings/lookup?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                const list = data.bookings || [];
+                if (list.length === 0) {
+                    container.innerHTML = `<div class="warm-card rounded-2xl p-8 text-center text-[#7a746c] text-sm">查無符合「${q}」的預約紀錄</div>`;
+                    return;
+                }
+
+                container.innerHTML = list.map(b => {
+                    const isCancelled = b.status === "cancelled";
+                    const statusBadge = isCancelled
+                        ? `<span class="px-2.5 py-0.5 rounded-full text-xs bg-[#ece7df] text-[#7a746c]">已取消</span>`
+                        : (b.status === "completed"
+                            ? `<span class="px-2.5 py-0.5 rounded-full text-xs bg-[#e6f3ec] text-[#356b50]">已完成</span>`
+                            : `<span class="px-2.5 py-0.5 rounded-full text-xs bg-[#e8f0f1] text-[#253e42] font-semibold">預約成功</span>`);
+
+                    const detailText = b.form_type === "maintenance"
+                        ? `車牌：${b.license_plate} ｜ 需求：${b.maintenance_type} ${b.repair_notes ? `(${b.repair_notes})` : ""}`
+                        : `試乘車種：${b.test_ride_model}`;
+
+                    return `
+                        <div class="warm-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-[#8c857b]">${b.booking_no}</span>
+                                    <span class="text-sm font-bold text-[#253e42]">${b.service_name}</span>
+                                    ${statusBadge}
+                                </div>
+                                <div class="text-base font-bold text-[#c27849]">${b.booking_date} ${b.booking_time}</div>
+                                <div class="text-xs text-[#5c574f]">${detailText}</div>
+                            </div>
+                            ${b.status === "confirmed" ? `
+                            <div>
+                                <button onclick="cancelCustomerBooking('${b.booking_no}', '${b.customer_phone}')"
+                                    class="px-3.5 py-2 rounded-xl border border-[#e3c5b4] text-[#a8552a] hover:bg-[#fff3ed] text-xs font-medium transition">
+                                    取消預約
+                                </button>
+                            </div>` : ""}
+                        </div>
+                    `;
+                }).join("");
+            } catch (err) {
+                container.innerHTML = `<div class="p-4 text-center text-[#c27849] text-sm">查詢失敗</div>`;
+            }
+        }
+
+        async function cancelCustomerBooking(bookingNo, phone) {
+            if (!confirm(`確定要取消預約單號 ${bookingNo} 嗎？`)) return;
+            const res = await fetch(`/api/public/bookings/${bookingNo}/cancel`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ customer_phone: phone })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                alert("已取消該筆預約！");
+                document.getElementById("lookupQueryInput").value = phone;
+                handleLookupBookings(new Event("submit"));
+                loadCalendarMonth(calendarState.year, calendarState.month);
+            } else {
+                alert(data.error || "取消失敗");
+            }
+        }
+
+        function renderInfoBusinessHours() {
+            const container = document.getElementById("infoBusinessHoursList");
+            const bh = appConfig.business_hours || {};
+            const order = ["0", "1", "2", "3", "4", "5", "6"];
+            container.innerHTML = order.map(k => {
+                const d = bh[k] || { label: "", is_open: false };
+                return `
+                    <div class="flex items-center justify-between py-1.5 border-b border-[#f5f1ea] last:border-0">
+                        <span class="text-[#5c574f] font-medium">${d.label}</span>
+                        ${d.is_open
+                            ? `<span class="text-[#253e42] font-semibold">${d.open_time} - ${d.close_time}</span>`
+                            : `<span class="text-[#b87b56]">休息</span>`}
+                    </div>
+                `;
+            }).join("");
+        }
+    </script>
+</body>
+</html>
