@@ -21,18 +21,19 @@
             color: #ffffff;
             box-shadow: 0 4px 12px rgba(37, 62, 66, 0.25);
         }
-        /* 仿 SimplyBook 週行事曆：公休日/非營業時間斜紋底色 */
-        .calendar-closed-hatch {
-            background-image: repeating-linear-gradient(
-                -45deg,
-                rgba(225, 222, 150, 0.42),
-                rgba(225, 222, 150, 0.42) 6px,
-                rgba(212, 208, 130, 0.58) 6px,
-                rgba(212, 208, 130, 0.58) 12px
-            );
-        }
         .calendar-half-hour-line {
             background-image: linear-gradient(to bottom, transparent 49%, #f1f5f9 50%, transparent 51%);
+        }
+        /* 仿 SimplyBook 週行事曆：公休日/特定休假/非營業時間 黃色斜紋底色 */
+        .calendar-closed-hatch {
+            background-color: #f3f0c2 !important;
+            background-image: repeating-linear-gradient(
+                -45deg,
+                rgba(226, 222, 138, 0.55),
+                rgba(226, 222, 138, 0.55) 6px,
+                rgba(206, 200, 102, 0.78) 6px,
+                rgba(206, 200, 102, 0.78) 12px
+            ) !important;
         }
     </style>
 </head>
@@ -1246,7 +1247,9 @@
                     btn.className = "text-slate-300 hover:bg-slate-700 px-3.5 py-2 rounded-xl whitespace-nowrap flex items-center gap-2 transition";
                 }
             });
-            if (tab === "notifications") {
+            if (tab === "bookings") {
+                renderCurrentBookingsView();
+            } else if (tab === "notifications") {
                 loadNotificationLogs();
             } else if (tab === "logs") {
                 loadSystemHealthAndCleanup();
@@ -1276,6 +1279,7 @@
             renderAdminServicesList();
             populateNotificationSettings();
             populateStoreSettings();
+            renderCurrentBookingsView();
         }
 
         // ==========================================
@@ -1405,14 +1409,51 @@
             return `${hh}:${mm}`;
         }
 
+        function normalizeDateYMD(val) {
+            const s = String(val === undefined || val === null ? "" : val).trim();
+            const m = s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (m) {
+                return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
+            }
+            return s.substring(0, 10);
+        }
+
+        function checkCalendarDayHeaderStatus(dateStr, monIdx) {
+            const holidays = adminData.holidays || [];
+            for (let i = 0; i < holidays.length; i++) {
+                const h = holidays[i];
+                const sDate = normalizeDateYMD(h.start_date);
+                const eDate = normalizeDateYMD(h.end_date || h.start_date);
+                if (dateStr >= sDate && dateStr <= eDate) {
+                    const isFull = Number(h.is_full_day) === 1 || h.is_full_day === true || String(h.is_full_day).toLowerCase() === "true" || !h.closed_start_time;
+                    if (isFull) {
+                        return { isFullClosed: true, badge: h.reason || "特定休假", type: "holiday" };
+                    }
+                    return { isFullClosed: false, badge: `${h.reason || "店休"} (${h.closed_start_time}~${h.closed_end_time})`, type: "partial" };
+                }
+            }
+            const bhAll = (adminData.settings && adminData.settings.business_hours) || {};
+            const bh = bhAll[String(monIdx)];
+            if (bh) {
+                const isOpen = bh.is_open === true || Number(bh.is_open) === 1 || String(bh.is_open).toLowerCase() === "true";
+                if (!isOpen) return { isFullClosed: true, badge: "固定公休", type: "weekly_closed" };
+            } else if (monIdx === 6) {
+                return { isFullClosed: true, badge: "週日公休", type: "weekly_closed" };
+            }
+            return { isFullClosed: false, badge: "", type: "open" };
+        }
+
         function checkCalendarHourClosed(dateStr, monIdx, hourInt) {
             // 1. 檢查特定店休 / 休假日
             const holidays = adminData.holidays || [];
             const hStr = String(hourInt).padStart(2, "0") + ":00";
             for (let i = 0; i < holidays.length; i++) {
                 const h = holidays[i];
-                if (dateStr >= h.start_date && dateStr <= h.end_date) {
-                    if (Number(h.is_full_day) === 1 || h.is_full_day === true) {
+                const sDate = normalizeDateYMD(h.start_date);
+                const eDate = normalizeDateYMD(h.end_date || h.start_date);
+                if (dateStr >= sDate && dateStr <= eDate) {
+                    const isFull = Number(h.is_full_day) === 1 || h.is_full_day === true || String(h.is_full_day).toLowerCase() === "true" || !h.closed_start_time;
+                    if (isFull) {
                         return { closed: true, reason: h.reason || "特定休假" };
                     }
                     if (h.closed_start_time && h.closed_end_time && hStr >= h.closed_start_time && hStr < h.closed_end_time) {
@@ -1424,7 +1465,8 @@
             const bhAll = (adminData.settings && adminData.settings.business_hours) || {};
             const bh = bhAll[String(monIdx)];
             if (bh) {
-                if (!bh.is_open) return { closed: true, reason: "公休日" };
+                const isOpen = bh.is_open === true || Number(bh.is_open) === 1 || String(bh.is_open).toLowerCase() === "true";
+                if (!isOpen) return { closed: true, reason: "固定公休" };
                 const openH = parseInt(String(bh.open_time || "10:00").split(":")[0], 10);
                 const closeParts = String(bh.close_time || "21:00").split(":").map(Number);
                 const closeH = closeParts[1] > 0 ? closeParts[0] + 1 : closeParts[0];
@@ -1459,7 +1501,8 @@
                     ymd: ymd,
                     displayDate: ymd.replace(/-/g, " "),
                     weekLabel: weekNames[i],
-                    isToday: ymd === todayStr
+                    isToday: ymd === todayStr,
+                    dayStatus: checkCalendarDayHeaderStatus(ymd, i)
                 });
             }
 
@@ -1493,22 +1536,26 @@
                 slotBookingsMap[key].push(b);
             });
 
-            // 建立表頭列 (仿 SimplyBook 週曆表頭)
+            // 建立表頭列 (仿 SimplyBook 週曆表頭，並標示公休/特定店休原因)
             let html = `
                 <div class="grid border-b border-slate-200 bg-white sticky top-0 z-10" style="grid-template-columns: 70px repeat(7, minmax(112px, 1fr));">
                     <div class="p-2.5 border-r border-slate-200 text-center text-[11px] font-bold text-slate-400 flex items-center justify-center">
                         時間
                     </div>
                     ${days.map(d => {
-                        const fullClosed = checkCalendarHourClosed(d.ymd, d.index, 14);
+                        const ds = d.dayStatus;
+                        const headerBg = ds.isFullClosed
+                            ? "bg-[#f6f3d0]"
+                            : (d.isToday ? "bg-sky-50/80" : "bg-white");
                         return `
-                        <div class="py-2.5 px-2 border-r border-slate-200 last:border-r-0 text-center ${d.isToday ? 'bg-sky-50/80' : ''}">
+                        <div class="py-2 px-1.5 border-r border-slate-200 last:border-r-0 text-center ${headerBg}">
                             <div class="text-xs sm:text-[13px] font-extrabold ${d.isToday ? 'text-[#0084dd]' : 'text-[#0099ff]'} tracking-tight">
                                 ${d.displayDate}
                             </div>
-                            <div class="text-[11px] font-bold mt-0.5 ${d.isToday ? 'text-sky-700' : 'text-slate-400'} flex items-center justify-center gap-1">
+                            <div class="text-[11px] font-bold mt-0.5 ${d.isToday ? 'text-sky-700' : 'text-slate-500'} flex items-center justify-center gap-1 flex-wrap">
                                 <span>${d.weekLabel}</span>
                                 ${d.isToday ? `<span class="px-1.5 py-0.2 rounded-full bg-[#0099ff] text-white text-[10px]">今日</span>` : ""}
+                                ${ds.badge ? `<span class="px-1.5 py-0.2 rounded bg-amber-200/90 text-amber-950 text-[10px] font-extrabold">${escAdminHtml(ds.badge)}</span>` : ""}
                             </div>
                         </div>`;
                     }).join("")}
@@ -1570,8 +1617,13 @@
                                 `;
                             }).join("");
 
+                            const cellBgClass = closedInfo.closed
+                                ? "calendar-closed-hatch"
+                                : ("calendar-half-hour-line " + (d.isToday ? "bg-sky-50/20" : "bg-white"));
+
                             return `
-                                <div class="relative border-r border-slate-200 last:border-r-0 p-1 space-y-1 calendar-half-hour-line ${closedInfo.closed ? 'calendar-closed-hatch' : (d.isToday ? 'bg-sky-50/20' : 'bg-white')}">
+                                <div title="${closedInfo.closed ? escAdminHtml(closedInfo.reason) : ''}"
+                                    class="relative border-r border-slate-200 last:border-r-0 p-1 space-y-1 ${cellBgClass}">
                                     ${showNowLine ? `
                                         <div class="absolute left-0 right-0 z-10 pointer-events-none flex items-center" style="top:${nowTopPercent}%;">
                                             <span class="w-2 h-2 rounded-full bg-rose-500 -ml-1"></span>
@@ -1686,6 +1738,97 @@
             if (card) card.classList.add("hidden");
         }
 
+        function buildModalTimeOptionsHtml(bookingId, targetDate, selectedTime) {
+            const rules = (adminData.settings && adminData.settings.booking_rules) || {};
+            const baseSlots = [
+                "09:00", "10:00", "11:00", "12:00", "13:00", "14:00",
+                "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"
+            ];
+            const customSlots = Array.isArray(rules.custom_slots) ? rules.custom_slots : [];
+            const allSet = new Set([...baseSlots, ...customSlots, selectedTime].filter(Boolean));
+            const sortedSlots = Array.from(allSet).sort();
+
+            // 檢查目標日期是星期幾 (0=週一 ... 6=週日)
+            let monIdx = 0;
+            const p = String(targetDate || "").split("-").map(Number);
+            if (p.length === 3) {
+                const jsDay = new Date(p[0], p[1] - 1, p[2]).getDay();
+                monIdx = jsDay === 0 ? 6 : jsDay - 1;
+            }
+
+            // 找出該日其他有效預約
+            const otherBookingsOnDate = (bookingViewState.allBookings || []).filter(item =>
+                item.id !== bookingId && item.booking_date === targetDate && item.status !== "cancelled"
+            );
+
+            return sortedSlots.map(t => {
+                const hr = parseInt(t.split(":")[0], 10);
+                const closedInfo = checkCalendarHourClosed(targetDate, monIdx, hr);
+                const others = otherBookingsOnDate.filter(item => item.booking_time === t);
+                let note = "";
+                if (others.length > 0) {
+                    note = ` (已有預約：${others.map(o => o.customer_name).join("、")})`;
+                } else if (closedInfo.closed) {
+                    note = ` (${closedInfo.reason})`;
+                }
+                const endT = getEndTimeStr(t);
+                return `<option value="${escAdminHtml(t)}" ${t === selectedTime ? "selected" : ""}>${escAdminHtml(t)} - ${escAdminHtml(endT)}${escAdminHtml(note)}</option>`;
+            }).join("");
+        }
+
+        function refreshModalTimeOptions(bookingId, newDateVal) {
+            const sel = document.getElementById("modalEditTime");
+            if (!sel) return;
+            const currentVal = sel.value;
+            sel.innerHTML = buildModalTimeOptionsHtml(bookingId, newDateVal, currentVal);
+        }
+
+        async function saveBookingReschedule(bookingId) {
+            const b = bookingViewState.bookingsById[bookingId];
+            if (!b) return;
+            const newDate = document.getElementById("modalEditDate")?.value || "";
+            const newTime = document.getElementById("modalEditTime")?.value || "";
+            const resendChecked = Boolean(document.getElementById("modalResendAfterReschedule")?.checked);
+
+            if (!newDate || !newTime) {
+                alert("請選擇新的預約日期與時段");
+                return;
+            }
+
+            const btn = document.getElementById("btnSaveReschedule");
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> 儲存時段中...`;
+            }
+
+            const res = await fetch(`/api/admin/bookings/${bookingId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    booking_date: newDate,
+                    booking_time: newTime
+                })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                if (resendChecked) {
+                    await fetch(`/api/admin/bookings/${bookingId}/resend-notify`, { method: "POST" });
+                }
+                showToast(`已將預約時段調整為 ${newDate} ${newTime}${resendChecked ? " 並重發通知" : ""}！`);
+                closeCalendarBookingModal();
+                jumpAdminCalendarToDate(newDate);
+                await loadAdminOverview();
+                await loadAdminBookings();
+            } else {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> 儲存時段變更`;
+                }
+                alert(data.error || "更新預約時段失敗");
+            }
+        }
+
         function openCalendarBookingModal(bookingId) {
             hideCalendarHoverCard();
             const b = bookingViewState.bookingsById[bookingId];
@@ -1704,12 +1847,46 @@
                 return `<span class="px-2 py-0.5 rounded border text-[11px] font-semibold ${color}">${label}: ${text}</span>`;
             };
 
+            const timeOptionsHtml = buildModalTimeOptionsHtml(b.id, b.booking_date, b.booking_time);
+
             document.getElementById("calendarModalBody").innerHTML = `
                 <div class="space-y-2.5 text-xs sm:text-sm">
                     ${info.rowsHtml}
                 </div>
 
-                <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                <!-- 直接調整預約日期與時段區塊 (免刪除重建) -->
+                <div class="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200 space-y-3">
+                    <div class="text-xs font-extrabold text-sky-900 flex items-center justify-between">
+                        <span><i class="fa-regular fa-clock mr-1 text-sky-600"></i>調整預約日期與時段（直接改期，免刪除重建）</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">預約日期</label>
+                            <input type="date" id="modalEditDate" value="${escAdminHtml(b.booking_date)}"
+                                onchange="refreshModalTimeOptions(${b.id}, this.value)"
+                                class="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs sm:text-sm font-bold text-slate-800">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">預約時段</label>
+                            <select id="modalEditTime"
+                                class="w-full px-3 py-2 rounded-xl border border-sky-300 bg-white text-xs sm:text-sm font-bold text-slate-800">
+                                ${timeOptionsHtml}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                        <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                            <input type="checkbox" id="modalResendAfterReschedule" class="rounded text-sky-600">
+                            <span>儲存後同步寄發改期通知 (LINE群組 & 客戶Email)</span>
+                        </label>
+                        <button type="button" id="btnSaveReschedule" onclick="saveBookingReschedule(${b.id})"
+                            class="px-4 py-2 rounded-xl bg-[#0099ff] hover:bg-[#0082db] text-white text-xs font-extrabold shadow-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-floppy-disk"></i> 儲存時段變更
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
                     ${notifyPill("員工群組LINE", b.staff_notify_status)}
                     ${notifyPill("客戶LINE", b.customer_line_notify_status)}
                     ${notifyPill("客戶Email", b.customer_email_notify_status)}
@@ -1792,7 +1969,11 @@
                                 ${serviceTag}
                                 <span class="text-base font-extrabold text-slate-900">${b.booking_date} ${b.booking_time}</span>
                             </div>
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button onclick="openCalendarBookingModal(${b.id})"
+                                    class="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-extrabold flex items-center gap-1">
+                                    <i class="fa-regular fa-pen-to-square"></i> 修改時段 / 詳情
+                                </button>
                                 <select onchange="updateBookingStatus(${b.id}, this.value)"
                                     class="px-3 py-1.5 rounded-xl border text-xs font-bold ${
                                         b.status === 'confirmed' ? 'bg-sky-50 border-sky-300 text-sky-800' :
