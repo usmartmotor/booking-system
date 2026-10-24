@@ -596,7 +596,8 @@
             selectedDate: "",
             selectedTime: "",
             lineUserId: "",
-            lineDisplayName: ""
+            lineDisplayName: "",
+            liffInClient: false
         };
 
         let calendarState = {
@@ -661,9 +662,13 @@
 
         async function initLineLiff() {
             const liffId = (appConfig.line_liff_id || "").trim();
-            if (!liffId) return;
+            if (!liffId || !window.liff) return;
             try {
-                await liff.init({ liffId });
+                if (!bookingState.liffReady) {
+                    await liff.init({ liffId });
+                    bookingState.liffReady = true;
+                }
+                bookingState.liffInClient = Boolean(typeof liff.isInClient === "function" && liff.isInClient());
                 if (liff.isLoggedIn()) {
                     const profile = await liff.getProfile();
                     bookingState.lineUserId = profile.userId;
@@ -678,6 +683,42 @@
                 }
             } catch (e) {
                 console.warn("LIFF init:", e);
+            }
+        }
+
+        /**
+         * 客戶端 LINE 免扣額度回傳機制：
+         * 當客戶在官方 LINE App 內透過 LIFF 完成預約時，由客戶端自動發送一則含完整預約明細的訊息至官方帳號聊天室（0 元無上限）
+         */
+        async function sendFreeLiffBookingMessage(b) {
+            if (!window.liff) return;
+            if (!bookingState.liffReady && (appConfig.line_liff_id || "").trim()) {
+                await initLineLiff();
+            }
+            const inClient = Boolean(typeof liff.isInClient === "function" && liff.isInClient());
+            if (!inClient || typeof liff.sendMessages !== "function") return;
+            try {
+                const detailLine = b.form_type === "maintenance"
+                    ? `車牌號碼：${b.license_plate || "-"}（${b.maintenance_type || "保養"}）`
+                    : `試乘車種：${b.test_ride_model || "-"}`;
+                const notesLine = b.repair_notes ? `\n需求備註：${b.repair_notes}` : "";
+                await liff.sendMessages([{
+                    type: "text",
+                    text: `📋 我已完成線上預約\n━━━━━━━━━━━━━━\n預約單號：${b.booking_no}\n預約項目：${b.service_name}\n預約時間：${b.booking_date} ${b.booking_time}\n預約姓名：${b.customer_name}（${b.customer_phone}）\n${detailLine}${notesLine}`
+                }]);
+            } catch (err) {
+                console.warn("LIFF sendMessages failed (請確認 LIFF Scopes 已勾選 chat_message.write):", err);
+                try {
+                    fetch("/api/public/client-error", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: "LIFF_SEND_MSG_FAILED",
+                            message: "LIFF 自動傳訊失敗（請確認 LINE Developers LIFF Scopes 已勾選 chat_message.write，且從 https://liff.line.me/... 連結開啟）：" + (err && err.message ? err.message : String(err)),
+                            detail: { booking_no: b.booking_no }
+                        })
+                    });
+                } catch (_) {}
             }
         }
 
@@ -1054,7 +1095,8 @@
                 customer_phone: document.getElementById("inputCustomerPhone").value.trim(),
                 customer_email: document.getElementById("inputCustomerEmail").value.trim(),
                 line_user_id: bookingState.lineUserId,
-                line_display_name: bookingState.lineDisplayName
+                line_display_name: bookingState.lineDisplayName,
+                liff_in_client: Boolean(bookingState.liffInClient)
             };
 
             if (isMaint) {
@@ -1113,6 +1155,7 @@
                 }
 
                 renderBookingConfirmation(data.booking);
+                await sendFreeLiffBookingMessage(data.booking);
                 await loadCalendarMonth(calendarState.year, calendarState.month);
                 goToStep(4);
             } catch (err) {
