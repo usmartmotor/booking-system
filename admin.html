@@ -476,6 +476,9 @@
                             <i class="fa-solid fa-motorcycle text-[#253e42]"></i> 賞車試乘 — 試乘車種與車款圖片管理
                         </h2>
                         <p class="text-xs text-slate-500 mt-0.5">可為每一款試乘車種上傳專屬車款圖片、編輯名稱與品牌標籤，前台「賞車試乘」表單將即時顯示車款照片供客戶點選</p>
+                        <p class="text-xs text-sky-700 font-semibold mt-1">
+                            <i class="fa-regular fa-lightbulb mr-1"></i>建議圖片尺寸：<span class="font-bold">800 × 500 px</span>（或 <span class="font-bold">800 × 600 px</span>，橫式比例約 <span class="font-bold">16:10</span> 或 <span class="font-bold">4:3</span>），車輛主體請置中避免貼邊裁切（JPG / PNG / WebP）
+                        </p>
                     </div>
                 </div>
 
@@ -494,7 +497,9 @@
                                 class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white">
                         </div>
                         <div class="sm:col-span-4">
-                            <label class="block text-xs font-bold text-slate-600 mb-1">車款圖片 (可上傳圖片或貼上網址)</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">
+                                車款圖片 <span class="text-[11px] font-semibold text-sky-700">(建議 800×500 px，16:10 或 4:3)</span>
+                            </label>
                             <div class="flex gap-1.5">
                                 <input type="text" id="newModelImageUrl" placeholder="選填，上傳後自動帶入"
                                     class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white">
@@ -528,6 +533,9 @@
                             <i class="fa-solid fa-images text-[#253e42]"></i> 服務項目與自定義圖片管理
                         </h2>
                         <p class="text-xs text-slate-500 mt-0.5">可為每個服務項目上傳自定義圖片（或輸入圖片網址）、修改名稱、說明文字、預計耗時與啟用狀態</p>
+                        <p class="text-xs text-sky-700 font-semibold mt-1">
+                            <i class="fa-regular fa-lightbulb mr-1"></i>建議圖片尺寸：<span class="font-bold">800 × 450 px</span>（或 <span class="font-bold">960 × 540 px</span>，橫式比例 <span class="font-bold">16:9</span>），視覺重點請置中（JPG / PNG / WebP）
+                        </p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="switchAdminTab('store')" class="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold">
@@ -560,7 +568,9 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">服務項目圖片 (可點右側按鈕上傳圖片或貼上圖片網址)</label>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">
+                            服務項目圖片 <span class="text-[11px] font-semibold text-sky-700">(建議尺寸：800 × 450 px，橫式比例 16:9，可點右側按鈕上傳或貼上網址)</span>
+                        </label>
                         <div class="flex gap-2">
                             <input type="text" id="newSvcImageUrl" placeholder="static/uploads/service_maintenance.jpg" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white">
                             <label class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1.5">
@@ -773,7 +783,12 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- 刊頭背景大圖 -->
                     <div class="lg:col-span-2 space-y-3">
-                        <label class="block text-sm font-bold text-slate-800">1. 網站頂部刊頭背景圖片 (建議橫幅比例)</label>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-800">1. 網站頂部刊頭背景圖片 (建議橫幅比例)</label>
+                            <p class="text-xs text-sky-700 font-semibold mt-0.5">
+                                <i class="fa-regular fa-lightbulb mr-1"></i>建議尺寸：<span class="font-bold">1920 × 600 px</span>（或 <span class="font-bold">1600 × 500 px</span>，橫幅比例約 <span class="font-bold">16:5</span>），重要主體請置中避免上下裁切（JPG / PNG / WebP）
+                            </p>
+                        </div>
                         <div class="relative h-48 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
                             <img id="previewBannerImage" src="static/uploads/default_banner.jpg" alt="刊頭預覽"
                                 class="w-full h-full object-cover">
@@ -795,7 +810,12 @@
 
                     <!-- 店家品牌 Logo -->
                     <div class="space-y-3">
-                        <label class="block text-sm font-bold text-slate-800">2. 店家品牌 Logo 圖片</label>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-800">2. 店家品牌 Logo 圖片</label>
+                            <p class="text-xs text-sky-700 font-semibold mt-0.5">
+                                <i class="fa-regular fa-lightbulb mr-1"></i>建議尺寸：橫式 <span class="font-bold">400 × 120 px</span>（約 <span class="font-bold">3:1</span>）或方形 <span class="font-bold">300 × 300 px</span>（<span class="font-bold">1:1</span>），建議使用透明背景 PNG 或白底圖檔
+                            </p>
+                        </div>
                         <div class="h-48 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center p-4">
                             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                                 <img id="previewLogoImage" src="static/uploads/default_logo.png" alt="Logo預覽"
@@ -2252,6 +2272,7 @@
                             <input type="file" accept="image/*" class="hidden"
                                 onchange="uploadModelImage(${m.id}, this)">
                         </label>
+                        <div class="text-[11px] text-slate-500 text-center leading-snug">建議尺寸：800×500 px<br>(比例約 16:10 或 4:3)</div>
                     </div>
 
                     <!-- 車款名稱、品牌、圖片網址與儲存 -->
@@ -2432,6 +2453,7 @@
                             <input type="file" accept="image/*" class="hidden"
                                 onchange="uploadImageToInput(this, 'svcImageUrl-${s.id}', 'svcPreviewImg-${s.id}', 'service_${s.id}')">
                         </label>
+                        <div class="text-[11px] text-slate-500 text-center leading-snug">建議尺寸：800 × 450 px（橫式比例 16:9）</div>
                     </div>
 
                     <!-- 服務項目文字與設定 -->
