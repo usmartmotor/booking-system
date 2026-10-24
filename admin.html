@@ -21,6 +21,19 @@
             color: #ffffff;
             box-shadow: 0 4px 12px rgba(37, 62, 66, 0.25);
         }
+        /* 仿 SimplyBook 週行事曆：公休日/非營業時間斜紋底色 */
+        .calendar-closed-hatch {
+            background-image: repeating-linear-gradient(
+                -45deg,
+                rgba(225, 222, 150, 0.42),
+                rgba(225, 222, 150, 0.42) 6px,
+                rgba(212, 208, 130, 0.58) 6px,
+                rgba(212, 208, 130, 0.58) 12px
+            );
+        }
+        .calendar-half-hour-line {
+            background-image: linear-gradient(to bottom, transparent 49%, #f1f5f9 50%, transparent 51%);
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -165,47 +178,113 @@
                 </div>
             </div>
 
-            <!-- Filter Bar -->
-            <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex flex-wrap items-end gap-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">預約日期</label>
-                    <input type="date" id="filterBookingDate" onchange="loadAdminBookings()"
-                        class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
+            <!-- 行事曆 / 列表 切換與篩選工具列 -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3.5">
+                <!-- 上排：視圖切換 + 週次切換導覽 (仿 SimplyBook 週行事曆工具列) -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-400 mr-1">觀看模式</span>
+                        <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                            <button type="button" id="btnViewModeCalendar" onclick="switchBookingViewMode('calendar')"
+                                class="px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-[#0099ff] text-white shadow-xs flex items-center gap-1.5 transition">
+                                <i class="fa-regular fa-calendar-days"></i> 週行事曆
+                            </button>
+                            <button type="button" id="btnViewModeList" onclick="switchBookingViewMode('list')"
+                                class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-list-ul"></i> 列表明細
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 週行事曆專屬：上一週 / 日期區間 / 跳轉日期 / 下一週 -->
+                    <div id="calendarWeekNavControls" class="flex items-center gap-2">
+                        <button type="button" onclick="shiftAdminCalendarWeek(-1)" title="上一週"
+                            class="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center text-xs transition">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span id="calendarWeekRangeText" class="text-sm sm:text-base font-extrabold text-slate-800 tracking-tight px-1">
+                            2026-10-19 – 2026-10-25
+                        </span>
+                        <label class="relative cursor-pointer w-8 h-8 rounded-full border border-sky-400 text-sky-600 hover:bg-sky-50 flex items-center justify-center text-xs transition" title="點此選擇任意日期跳轉至該週">
+                            <i class="fa-regular fa-calendar"></i>
+                            <input type="date" id="calendarQuickDateInput" onchange="jumpAdminCalendarToDate(this.value)"
+                                class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                        </label>
+                        <button type="button" onclick="shiftAdminCalendarWeek(1)" title="下一週"
+                            class="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-100 text-slate-600 flex items-center justify-center text-xs transition">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="resetAdminCalendarToToday()"
+                            class="px-3 py-1.5 rounded-xl border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-700 text-xs font-extrabold flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-calendar-day"></i> 顯示本週
+                        </button>
+                        <button type="button" onclick="loadAdminBookings()"
+                            class="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1 transition">
+                            <i class="fa-solid fa-rotate"></i> 重新整理
+                        </button>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">服務類型</label>
-                    <select id="filterFormType" onchange="loadAdminBookings()" class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
-                        <option value="">全部服務項目</option>
-                        <option value="maintenance">1. 維修保養</option>
-                        <option value="test_ride">2. 賞車試乘</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">預約狀態</label>
-                    <select id="filterStatus" onchange="loadAdminBookings()" class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
-                        <option value="">全部狀態</option>
-                        <option value="confirmed">預約成功 (待到店)</option>
-                        <option value="completed">已完成</option>
-                        <option value="cancelled">已取消</option>
-                    </select>
-                </div>
-                <div class="flex-1 min-w-[180px]">
-                    <label class="block text-xs font-bold text-slate-500 mb-1">關鍵字搜尋 (姓名/電話/車牌/單號/試乘車種)</label>
-                    <input type="text" id="filterKeyword" oninput="loadAdminBookings()" placeholder="輸入姓名、電話、車牌或單號..."
-                        class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm">
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="clearBookingFilters()" class="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-600">
-                        顯示全部
-                    </button>
-                    <button onclick="loadAdminBookings()" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold">
-                        <i class="fa-solid fa-rotate mr-1"></i> 重新整理
-                    </button>
+
+                <!-- 下排：篩選條件與圖例 -->
+                <div class="flex flex-wrap items-end justify-between gap-3">
+                    <div class="flex flex-wrap items-end gap-2.5 flex-1">
+                        <div id="listDateFilterBox" class="hidden">
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">單日篩選</label>
+                            <input type="date" id="filterBookingDate" onchange="loadAdminBookings()"
+                                class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">服務類型</label>
+                            <select id="filterFormType" onchange="loadAdminBookings()" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white">
+                                <option value="">全部服務項目</option>
+                                <option value="maintenance">1. 維修保養</option>
+                                <option value="test_ride">2. 賞車試乘</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">預約狀態</label>
+                            <select id="filterStatus" onchange="loadAdminBookings()" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white">
+                                <option value="">有效預約 (不含已取消)</option>
+                                <option value="ALL_WITH_CANCELLED">全部狀態 (含已取消)</option>
+                                <option value="confirmed">預約成功 (待到店)</option>
+                                <option value="completed">已完成服務</option>
+                                <option value="cancelled">已取消</option>
+                            </select>
+                        </div>
+                        <div class="flex-1 min-w-[170px] max-w-xs">
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">搜尋 (姓名/電話/車牌/單號)</label>
+                            <input type="text" id="filterKeyword" oninput="renderCurrentBookingsView()" placeholder="輸入姓名、電話、車牌或單號..."
+                                class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs">
+                        </div>
+                        <button type="button" onclick="clearBookingFilters()" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-500">
+                            重設篩選
+                        </button>
+                    </div>
+
+                    <!-- 顏色圖例 -->
+                    <div class="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-600">
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-[#0099ff] inline-block"></span>維修保養</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-[#059669] inline-block"></span>賞車試乘</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-slate-600 inline-block"></span>已完成</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs calendar-closed-hatch border border-amber-300 inline-block"></span>店休/非營業時段</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Bookings List -->
-            <div id="adminBookingsContainer" class="space-y-3">
+            <!-- 視圖 A：週行事曆視圖 (預設開啟，仿 SimplyBook 週曆介面) -->
+            <div id="adminWeeklyCalendarWrapper" class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div class="overflow-x-auto">
+                    <div id="adminWeeklyCalendarGrid" class="min-w-[860px]">
+                        <!-- JS 動態渲染週行事曆格線與預約色塊 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 視圖 B：傳統列表明細視圖 -->
+            <div id="adminBookingsContainer" class="hidden space-y-3">
                 <!-- JS 動態渲染預約訂單卡片 -->
             </div>
         </section>
@@ -836,7 +915,7 @@
                     <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                         <div class="text-[11px] text-slate-500 font-semibold">今日 Gmail 剩餘免費寄信額度</div>
                         <div id="healthMailQuota" class="text-xl font-extrabold text-sky-700 mt-1">-- 封</div>
-                        <div id="healthOwnerEmail" class="text-[11px] text-slate-400 mt-0.5 truncate">Google 帳號自動發信</div>
+                        <div id="healthOwnerEmail" class="text-[11px] text-slate-400 mt-0.5 truncate">每日 100 封自動重置（每月約 3,000 封）</div>
                     </div>
                     <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                         <div class="text-[11px] text-slate-500 font-semibold">最近 7 天系統錯誤 / 警告數</div>
@@ -1064,6 +1143,41 @@
         </div>
     </div>
 
+    <!-- 週行事曆：滑鼠靠近 (Hover) 浮動詳細資訊卡 -->
+    <div id="calendarBookingHoverCard" class="fixed z-50 hidden pointer-events-none w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-xs transition-opacity duration-150">
+        <div id="calendarHoverHeader" class="px-4 py-2.5 bg-[#0099ff] text-white flex items-center justify-between">
+            <span id="calendarHoverTime" class="font-extrabold text-sm">13:00 - 14:00</span>
+            <span id="calendarHoverNo" class="font-mono text-[11px] bg-black/20 px-2 py-0.5 rounded-md">BK261025-001</span>
+        </div>
+        <div id="calendarHoverBody" class="p-3.5 space-y-2 text-slate-700"></div>
+        <div class="px-3.5 py-2 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+            <span><i class="fa-solid fa-hand-pointer text-sky-600 mr-1"></i>點擊色塊可開啟管理視窗</span>
+            <span id="calendarHoverStatusBadge" class="font-bold"></span>
+        </div>
+    </div>
+
+    <!-- 週行事曆：點開 (Click) 預約詳細資訊與狀態管理視窗 -->
+    <div id="calendarBookingDetailModal" onclick="if(event.target===this) closeCalendarBookingModal()"
+        class="fixed inset-0 z-50 hidden bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div id="calendarModalHeader" class="px-5 py-4 bg-[#253e42] text-white flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="calendarModalServiceBadge" class="px-2 py-0.5 rounded bg-white/20 text-xs font-bold">維修保養</span>
+                        <span id="calendarModalBookingNo" class="font-mono text-xs text-white/80">BK261025-001</span>
+                    </div>
+                    <h3 id="calendarModalTitle" class="text-lg font-extrabold mt-1">2026-10-25 13:00 - 14:00</h3>
+                </div>
+                <button type="button" onclick="closeCalendarBookingModal()" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="calendarModalBody" class="p-5 space-y-4 text-sm max-h-[75vh] overflow-y-auto">
+                <!-- JS 動態渲染完整預約詳細資訊與操作按鈕 -->
+            </div>
+        </div>
+    </div>
+
     <!-- ==========================================
          Admin JavaScript Logic
          ========================================== -->
@@ -1165,26 +1279,477 @@
         }
 
         // ==========================================
-        // 1. 預約訂單管理
+        // 1. 預約訂單管理 (週行事曆視圖 + 列表明細視圖)
         // ==========================================
+        let bookingViewState = {
+            mode: "calendar", // 'calendar' | 'list'
+            weekMonday: getMondayOfDate(new Date()),
+            allBookings: [],
+            bookingsById: {}
+        };
+
+        function getMondayOfDate(d) {
+            const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const day = dt.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+            const diff = day === 0 ? -6 : (1 - day);
+            dt.setDate(dt.getDate() + diff);
+            return dt;
+        }
+
+        function formatYMD(dt) {
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, "0");
+            const d = String(dt.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+
+        function escAdminHtml(str) {
+            return String(str === undefined || str === null ? "" : str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function switchBookingViewMode(mode) {
+            bookingViewState.mode = mode;
+            const isCal = mode === "calendar";
+            document.getElementById("adminWeeklyCalendarWrapper").classList.toggle("hidden", !isCal);
+            document.getElementById("adminBookingsContainer").classList.toggle("hidden", isCal);
+            document.getElementById("calendarWeekNavControls").classList.toggle("hidden", !isCal);
+            document.getElementById("listDateFilterBox").classList.toggle("hidden", isCal);
+
+            const btnCal = document.getElementById("btnViewModeCalendar");
+            const btnList = document.getElementById("btnViewModeList");
+            if (isCal) {
+                btnCal.className = "px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-[#0099ff] text-white shadow-xs flex items-center gap-1.5 transition";
+                btnList.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition";
+            } else {
+                btnList.className = "px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-[#0099ff] text-white shadow-xs flex items-center gap-1.5 transition";
+                btnCal.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition";
+            }
+            renderCurrentBookingsView();
+        }
+
+        function shiftAdminCalendarWeek(deltaWeeks) {
+            const next = new Date(bookingViewState.weekMonday);
+            next.setDate(next.getDate() + deltaWeeks * 7);
+            bookingViewState.weekMonday = getMondayOfDate(next);
+            renderCurrentBookingsView();
+        }
+
+        function jumpAdminCalendarToDate(dateStr) {
+            if (!dateStr) return;
+            const parts = dateStr.split("-").map(Number);
+            if (parts.length === 3) {
+                bookingViewState.weekMonday = getMondayOfDate(new Date(parts[0], parts[1] - 1, parts[2]));
+                renderCurrentBookingsView();
+            }
+        }
+
+        function resetAdminCalendarToToday() {
+            bookingViewState.weekMonday = getMondayOfDate(new Date());
+            renderCurrentBookingsView();
+        }
+
         async function loadAdminBookings() {
-            const dateVal = document.getElementById("filterBookingDate").value;
-            const formType = document.getElementById("filterFormType").value;
-            const status = document.getElementById("filterStatus").value;
-            const keyword = document.getElementById("filterKeyword").value.trim();
-
-            const params = new URLSearchParams();
-            if (dateVal) params.set("date", dateVal);
-            if (formType) params.set("form_type", formType);
-            if (status) params.set("status", status);
-            if (keyword) params.set("keyword", keyword);
-
-            const res = await fetch(`/api/admin/bookings?${params.toString()}`);
+            const res = await fetch("/api/admin/bookings");
             const data = await res.json();
             if (!data.ok) return;
+            bookingViewState.allBookings = data.bookings || [];
+            bookingViewState.bookingsById = {};
+            bookingViewState.allBookings.forEach(b => {
+                bookingViewState.bookingsById[b.id] = b;
+            });
+            renderCurrentBookingsView();
+        }
 
+        function getFilteredAdminBookings(ignoreSingleDate) {
+            const dateVal = ignoreSingleDate ? "" : (document.getElementById("filterBookingDate")?.value || "");
+            const formType = document.getElementById("filterFormType")?.value || "";
+            const status = document.getElementById("filterStatus")?.value || "";
+            const keyword = (document.getElementById("filterKeyword")?.value || "").trim().toLowerCase();
+
+            return (bookingViewState.allBookings || []).filter(b => {
+                if (dateVal && b.booking_date !== dateVal) return false;
+                if (formType && b.form_type !== formType) return false;
+                if (!status) {
+                    // 預設顯示有效預約 (confirmed & completed)，不顯示已取消，保持行事曆清爽
+                    if (b.status === "cancelled") return false;
+                } else if (status !== "ALL_WITH_CANCELLED" && b.status !== status) {
+                    return false;
+                }
+                if (keyword) {
+                    const hay = [
+                        b.booking_no, b.customer_name, b.customer_phone, b.customer_email,
+                        b.license_plate, b.vehicle_model, b.test_ride_model, b.repair_notes, b.service_name
+                    ].join(" ").toLowerCase();
+                    if (!hay.includes(keyword)) return false;
+                }
+                return true;
+            });
+        }
+
+        function renderCurrentBookingsView() {
+            hideCalendarHoverCard();
+            renderAdminWeeklyCalendar();
+            renderAdminBookingsList();
+        }
+
+        function getEndTimeStr(startTimeStr, formType) {
+            const m = String(startTimeStr || "10:00").match(/^(\d{1,2}):(\d{2})/);
+            if (!m) return "";
+            let totalMins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + 60;
+            const hh = String(Math.floor(totalMins / 60)).padStart(2, "0");
+            const mm = String(totalMins % 60).padStart(2, "0");
+            return `${hh}:${mm}`;
+        }
+
+        function checkCalendarHourClosed(dateStr, monIdx, hourInt) {
+            // 1. 檢查特定店休 / 休假日
+            const holidays = adminData.holidays || [];
+            const hStr = String(hourInt).padStart(2, "0") + ":00";
+            for (let i = 0; i < holidays.length; i++) {
+                const h = holidays[i];
+                if (dateStr >= h.start_date && dateStr <= h.end_date) {
+                    if (Number(h.is_full_day) === 1 || h.is_full_day === true) {
+                        return { closed: true, reason: h.reason || "特定休假" };
+                    }
+                    if (h.closed_start_time && h.closed_end_time && hStr >= h.closed_start_time && hStr < h.closed_end_time) {
+                        return { closed: true, reason: h.reason || "局部店休" };
+                    }
+                }
+            }
+            // 2. 檢查每週固定營業時間 (key "0"=週一 ... "6"=週日)
+            const bhAll = (adminData.settings && adminData.settings.business_hours) || {};
+            const bh = bhAll[String(monIdx)];
+            if (bh) {
+                if (!bh.is_open) return { closed: true, reason: "公休日" };
+                const openH = parseInt(String(bh.open_time || "10:00").split(":")[0], 10);
+                const closeParts = String(bh.close_time || "21:00").split(":").map(Number);
+                const closeH = closeParts[1] > 0 ? closeParts[0] + 1 : closeParts[0];
+                if (hourInt < openH || hourInt >= closeH) {
+                    return { closed: true, reason: "非營業時段" };
+                }
+                if (bh.break_start && bh.break_end && hStr >= bh.break_start && hStr < bh.break_end) {
+                    return { closed: true, reason: "休息時段" };
+                }
+            } else if (monIdx === 6) {
+                return { closed: true, reason: "週日公休" };
+            }
+            return { closed: false, reason: "" };
+        }
+
+        function renderAdminWeeklyCalendar() {
+            const gridEl = document.getElementById("adminWeeklyCalendarGrid");
+            if (!gridEl) return;
+
+            const mon = new Date(bookingViewState.weekMonday);
+            const days = [];
+            const weekNames = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"];
+            const todayStr = formatYMD(new Date());
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(mon);
+                d.setDate(mon.getDate() + i);
+                const ymd = formatYMD(d);
+                days.push({
+                    index: i,
+                    dateObj: d,
+                    ymd: ymd,
+                    displayDate: ymd.replace(/-/g, " "),
+                    weekLabel: weekNames[i],
+                    isToday: ymd === todayStr
+                });
+            }
+
+            // 更新上方週次區間文字
+            const rangeTextEl = document.getElementById("calendarWeekRangeText");
+            if (rangeTextEl) {
+                rangeTextEl.textContent = `${days[0].ymd} – ${days[6].ymd}`;
+            }
+
+            // 決定顯示的小時範圍 (預設 09:00 ~ 21:00，若預約落在此範圍外則自動擴展)
+            let minHour = 9;
+            let maxHour = 21;
+            const filtered = getFilteredAdminBookings(true);
+            const weekDateSet = new Set(days.map(d => d.ymd));
+            const weekBookings = filtered.filter(b => weekDateSet.has(b.booking_date));
+
+            weekBookings.forEach(b => {
+                const hr = parseInt(String(b.booking_time || "10:00").split(":")[0], 10);
+                if (!isNaN(hr)) {
+                    if (hr < minHour) minHour = hr;
+                    if (hr > maxHour) maxHour = hr;
+                }
+            });
+
+            // 依 (日期 + 小時) 分組預約
+            const slotBookingsMap = {};
+            weekBookings.forEach(b => {
+                const hr = parseInt(String(b.booking_time || "10:00").split(":")[0], 10);
+                const key = `${b.booking_date}_${hr}`;
+                if (!slotBookingsMap[key]) slotBookingsMap[key] = [];
+                slotBookingsMap[key].push(b);
+            });
+
+            // 建立表頭列 (仿 SimplyBook 週曆表頭)
+            let html = `
+                <div class="grid border-b border-slate-200 bg-white sticky top-0 z-10" style="grid-template-columns: 70px repeat(7, minmax(112px, 1fr));">
+                    <div class="p-2.5 border-r border-slate-200 text-center text-[11px] font-bold text-slate-400 flex items-center justify-center">
+                        時間
+                    </div>
+                    ${days.map(d => {
+                        const fullClosed = checkCalendarHourClosed(d.ymd, d.index, 14);
+                        return `
+                        <div class="py-2.5 px-2 border-r border-slate-200 last:border-r-0 text-center ${d.isToday ? 'bg-sky-50/80' : ''}">
+                            <div class="text-xs sm:text-[13px] font-extrabold ${d.isToday ? 'text-[#0084dd]' : 'text-[#0099ff]'} tracking-tight">
+                                ${d.displayDate}
+                            </div>
+                            <div class="text-[11px] font-bold mt-0.5 ${d.isToday ? 'text-sky-700' : 'text-slate-400'} flex items-center justify-center gap-1">
+                                <span>${d.weekLabel}</span>
+                                ${d.isToday ? `<span class="px-1.5 py-0.2 rounded-full bg-[#0099ff] text-white text-[10px]">今日</span>` : ""}
+                            </div>
+                        </div>`;
+                    }).join("")}
+                </div>
+            `;
+
+            // 現在時間紅線計算
+            const now = new Date();
+            const nowHour = now.getHours();
+            const nowMin = now.getMinutes();
+
+            // 建立每個小時列
+            for (let hr = minHour; hr <= maxHour; hr++) {
+                const hrLabel = String(hr).padStart(2, "0") + ":00";
+                html += `
+                    <div class="grid border-b border-slate-200 last:border-b-0" style="grid-template-columns: 70px repeat(7, minmax(112px, 1fr)); min-height: 66px;">
+                        <div class="border-r border-slate-200 bg-slate-50/40 text-[11px] font-bold text-slate-400 flex items-start justify-center pt-2 select-none">
+                            ${hrLabel}
+                        </div>
+                        ${days.map(d => {
+                            const closedInfo = checkCalendarHourClosed(d.ymd, d.index, hr);
+                            const cellBookings = slotBookingsMap[`${d.ymd}_${hr}`] || [];
+                            const showNowLine = d.isToday && nowHour === hr;
+                            const nowTopPercent = Math.min(96, Math.max(4, Math.round((nowMin / 60) * 100)));
+
+                            const eventsHtml = cellBookings.map(b => {
+                                const isMaint = b.form_type === "maintenance";
+                                const endTime = getEndTimeStr(b.booking_time, b.form_type);
+                                const subTag = isMaint
+                                    ? (b.license_plate || b.maintenance_type || "維修保養")
+                                    : (b.test_ride_model || "賞車試乘");
+
+                                let cardColor = "bg-[#0099ff] hover:bg-[#0082db] text-white border-[#007acc]";
+                                if (b.status === "completed") {
+                                    cardColor = "bg-slate-600 hover:bg-slate-700 text-white border-slate-700";
+                                } else if (b.status === "cancelled") {
+                                    cardColor = "bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300 line-through opacity-75";
+                                } else if (!isMaint) {
+                                    cardColor = "bg-[#059669] hover:bg-[#047857] text-white border-[#047857]";
+                                }
+
+                                return `
+                                    <div onclick="openCalendarBookingModal(${b.id})"
+                                        onmouseenter="showCalendarHoverCard(event, ${b.id})"
+                                        onmousemove="moveCalendarHoverCard(event)"
+                                        onmouseleave="hideCalendarHoverCard()"
+                                        class="cursor-pointer rounded-md px-2 py-1.5 border shadow-xs transition transform hover:-translate-y-0.5 select-none ${cardColor}">
+                                        <div class="text-[11px] font-extrabold leading-tight flex items-center justify-between gap-1">
+                                            <span>${escAdminHtml(b.booking_time)} - ${escAdminHtml(endTime)}</span>
+                                            ${b.status === "completed" ? `<i class="fa-solid fa-check-double text-[10px]"></i>` : ""}
+                                        </div>
+                                        <div class="text-xs font-extrabold leading-snug mt-0.5 truncate">
+                                            ${escAdminHtml(b.customer_name)} <span class="underline decoration-white/60 underline-offset-2">${escAdminHtml(b.service_name)}</span>
+                                        </div>
+                                        <div class="text-[10px] opacity-90 truncate mt-0.5 font-medium">
+                                            ${escAdminHtml(subTag)}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join("");
+
+                            return `
+                                <div class="relative border-r border-slate-200 last:border-r-0 p-1 space-y-1 calendar-half-hour-line ${closedInfo.closed ? 'calendar-closed-hatch' : (d.isToday ? 'bg-sky-50/20' : 'bg-white')}">
+                                    ${showNowLine ? `
+                                        <div class="absolute left-0 right-0 z-10 pointer-events-none flex items-center" style="top:${nowTopPercent}%;">
+                                            <span class="w-2 h-2 rounded-full bg-rose-500 -ml-1"></span>
+                                            <span class="flex-1 border-t-2 border-rose-500"></span>
+                                        </div>
+                                    ` : ""}
+                                    ${eventsHtml}
+                                </div>
+                            `;
+                        }).join("")}
+                    </div>
+                `;
+            }
+
+            gridEl.innerHTML = html;
+        }
+
+        function buildBookingDetailHtml(b) {
+            const isMaint = b.form_type === "maintenance";
+            const endTime = getEndTimeStr(b.booking_time, b.form_type);
+            const statusLabel = b.status === "confirmed"
+                ? `<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold">🟢 預約成功 (待到店)</span>`
+                : (b.status === "completed"
+                    ? `<span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-extrabold">✅ 已完成服務</span>`
+                    : `<span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-extrabold">⚪ 已取消</span>`);
+
+            return {
+                endTime,
+                statusLabel,
+                rowsHtml: `
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span class="text-slate-400">客戶姓名</span>
+                        <strong class="text-slate-900 text-sm">${escAdminHtml(b.customer_name)}</strong>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span class="text-slate-400">聯絡電話</span>
+                        <strong class="text-sky-600 font-mono">${escAdminHtml(b.customer_phone)}</strong>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span class="text-slate-400">電子信箱</span>
+                        <span class="text-slate-700 truncate max-w-[190px]">${escAdminHtml(b.customer_email)}</span>
+                    </div>
+                    ${isMaint ? `
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span class="text-slate-400">車牌號碼</span>
+                            <strong class="text-slate-900 font-mono bg-slate-100 px-2 py-0.5 rounded">${escAdminHtml(b.license_plate || "-")}</strong>
+                        </div>
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span class="text-slate-400">里程 / 車型</span>
+                            <span class="text-slate-800 font-semibold">${escAdminHtml(b.mileage || "未填")} / ${escAdminHtml(b.vehicle_model || "未填")}</span>
+                        </div>
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span class="text-slate-400">預約需求</span>
+                            <strong class="${b.maintenance_type === '維修/查修' ? 'text-rose-600' : 'text-sky-700'}">${escAdminHtml(b.maintenance_type || "-")}</strong>
+                        </div>
+                    ` : `
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span class="text-slate-400">試乘車種</span>
+                            <strong class="text-emerald-700">${escAdminHtml(b.test_ride_model || "-")}</strong>
+                        </div>
+                    `}
+                    ${b.repair_notes ? `
+                        <div class="pt-0.5">
+                            <div class="text-slate-400 mb-1">需求說明 / 備註：</div>
+                            <div class="p-2 rounded-lg bg-amber-50/70 border border-amber-200/80 text-slate-800 font-medium leading-relaxed break-words">
+                                ${escAdminHtml(b.repair_notes)}
+                            </div>
+                        </div>
+                    ` : ""}
+                `
+            };
+        }
+
+        function showCalendarHoverCard(ev, bookingId) {
+            const b = bookingViewState.bookingsById[bookingId];
+            if (!b) return;
+            const card = document.getElementById("calendarBookingHoverCard");
+            const header = document.getElementById("calendarHoverHeader");
+            const info = buildBookingDetailHtml(b);
+
+            header.className = "px-4 py-2.5 text-white flex items-center justify-between " +
+                (b.form_type === "maintenance" ? "bg-[#0099ff]" : "bg-[#059669]");
+            document.getElementById("calendarHoverTime").textContent = `${b.booking_date} ${b.booking_time} - ${info.endTime}`;
+            document.getElementById("calendarHoverNo").textContent = b.booking_no;
+            document.getElementById("calendarHoverBody").innerHTML = info.rowsHtml;
+            document.getElementById("calendarHoverStatusBadge").innerHTML = info.statusLabel;
+
+            card.classList.remove("hidden");
+            moveCalendarHoverCard(ev);
+        }
+
+        function moveCalendarHoverCard(ev) {
+            const card = document.getElementById("calendarBookingHoverCard");
+            if (!card || card.classList.contains("hidden")) return;
+            const pad = 16;
+            const cardW = 320;
+            const cardH = card.offsetHeight || 280;
+            let left = ev.clientX + pad;
+            let top = ev.clientY + pad;
+            if (left + cardW > window.innerWidth - 12) {
+                left = Math.max(12, ev.clientX - cardW - pad);
+            }
+            if (top + cardH > window.innerHeight - 12) {
+                top = Math.max(12, window.innerHeight - cardH - 12);
+            }
+            card.style.left = `${left}px`;
+            card.style.top = `${top}px`;
+        }
+
+        function hideCalendarHoverCard() {
+            const card = document.getElementById("calendarBookingHoverCard");
+            if (card) card.classList.add("hidden");
+        }
+
+        function openCalendarBookingModal(bookingId) {
+            hideCalendarHoverCard();
+            const b = bookingViewState.bookingsById[bookingId];
+            if (!b) return;
+            const modal = document.getElementById("calendarBookingDetailModal");
+            const info = buildBookingDetailHtml(b);
+
+            document.getElementById("calendarModalServiceBadge").textContent = b.service_name;
+            document.getElementById("calendarModalBookingNo").textContent = b.booking_no;
+            document.getElementById("calendarModalTitle").textContent = `${b.booking_date} ${b.booking_time} - ${info.endTime}`;
+
+            const notifyPill = (label, st) => {
+                const color = st === "sent" ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                    : (st === "simulated" ? "text-sky-700 bg-sky-50 border-sky-200" : "text-slate-600 bg-slate-100 border-slate-200");
+                const text = st === "sent" ? "已發送" : (st === "simulated" ? "已記錄" : (st || "略過"));
+                return `<span class="px-2 py-0.5 rounded border text-[11px] font-semibold ${color}">${label}: ${text}</span>`;
+            };
+
+            document.getElementById("calendarModalBody").innerHTML = `
+                <div class="space-y-2.5 text-xs sm:text-sm">
+                    ${info.rowsHtml}
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                    ${notifyPill("員工群組LINE", b.staff_notify_status)}
+                    ${notifyPill("客戶LINE", b.customer_line_notify_status)}
+                    ${notifyPill("客戶Email", b.customer_email_notify_status)}
+                </div>
+
+                <div class="pt-3 border-t border-slate-200 space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5">更改預約狀態</label>
+                        <select onchange="updateBookingStatus(${b.id}, this.value, true)"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold bg-slate-50">
+                            <option value="confirmed" ${b.status === 'confirmed' ? 'selected' : ''}>🟢 預約成功 (待到店)</option>
+                            <option value="completed" ${b.status === 'completed' ? 'selected' : ''}>✅ 已完成服務</option>
+                            <option value="cancelled" ${b.status === 'cancelled' ? 'selected' : ''}>⚪ 已取消 (釋放該時段名額)</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-2 pt-1">
+                        <button type="button" onclick="resendBookingNotify(${b.id})"
+                            class="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-bell text-sky-600"></i> 重新發送通知
+                        </button>
+                        <button type="button" onclick="deleteBookingRecord(${b.id}, true)"
+                            class="py-2.5 px-4 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-bold flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-trash"></i> 刪除預約
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.remove("hidden");
+        }
+
+        function closeCalendarBookingModal() {
+            const modal = document.getElementById("calendarBookingDetailModal");
+            if (modal) modal.classList.add("hidden");
+        }
+
+        function renderAdminBookingsList() {
             const container = document.getElementById("adminBookingsContainer");
-            const list = data.bookings || [];
+            const list = getFilteredAdminBookings(false);
             if (list.length === 0) {
                 container.innerHTML = `<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200/80">尚無符合條件的預約紀錄</div>`;
                 return;
@@ -1276,10 +1841,10 @@
             document.getElementById("filterFormType").value = "";
             document.getElementById("filterStatus").value = "";
             document.getElementById("filterKeyword").value = "";
-            loadAdminBookings();
+            renderCurrentBookingsView();
         }
 
-        async function updateBookingStatus(id, status) {
+        async function updateBookingStatus(id, status, fromModal) {
             const res = await fetch(`/api/admin/bookings/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -1288,8 +1853,9 @@
             const data = await res.json();
             if (data.ok) {
                 showToast("預約狀態已更新");
-                loadAdminOverview();
-                loadAdminBookings();
+                if (fromModal) closeCalendarBookingModal();
+                await loadAdminOverview();
+                await loadAdminBookings();
             }
         }
 
@@ -1298,16 +1864,17 @@
             const data = await res.json();
             if (data.ok) {
                 showToast("已重新觸發 LINE 與 Email 通知！");
-                loadAdminBookings();
+                await loadAdminBookings();
             }
         }
 
-        async function deleteBookingRecord(id) {
+        async function deleteBookingRecord(id, fromModal) {
             if (!confirm("確定要永久刪除此筆預約紀錄嗎？")) return;
             await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
             showToast("預約紀錄已刪除");
-            loadAdminOverview();
-            loadAdminBookings();
+            if (fromModal) closeCalendarBookingModal();
+            await loadAdminOverview();
+            await loadAdminBookings();
         }
 
         // ==========================================
@@ -2013,8 +2580,8 @@
 
                 document.getElementById("healthCellsPercent").textContent = `${h.cells_usage_percent}%`;
                 document.getElementById("healthCellsDetail").textContent = `已配置約 ${(h.total_cells_used || 0).toLocaleString()} / 10,000,000 格`;
-                document.getElementById("healthMailQuota").textContent = h.mail_quota_remaining >= 0 ? `${h.mail_quota_remaining} 封` : "正常";
-                document.getElementById("healthOwnerEmail").textContent = h.owner_email || "Google 帳號內建寄信";
+                document.getElementById("healthMailQuota").textContent = h.mail_quota_remaining >= 0 ? `${h.mail_quota_remaining} / 100 封` : "正常";
+                document.getElementById("healthOwnerEmail").textContent = `${h.owner_email || "Gmail"}（每日重置100封／月約3,000封）`;
                 document.getElementById("healthLastCleanupAt").textContent = h.last_cleanup_at || "尚未執行";
                 document.getElementById("healthLastCleanupSummary").textContent = h.last_cleanup_summary || "每日凌晨 03:00 自動執行";
 
