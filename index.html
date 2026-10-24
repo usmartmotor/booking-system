@@ -1139,6 +1139,11 @@
                 if (!data.ok) {
                     errText.textContent = data.error || "預約失敗，請檢查欄位或重試";
                     errBox.classList.remove("hidden");
+                    // 若時段剛被其他客人搶先預約，背景同步重新整理該日時段與月曆狀態
+                    if (bookingState.selectedDate) {
+                        selectDate(bookingState.selectedDate);
+                    }
+                    loadCalendarMonth(calendarState.year, calendarState.month);
                     return;
                 }
 
@@ -1154,9 +1159,68 @@
             }
         }
 
+        function buildGoogleCalendarUrls(b) {
+            const store = appConfig.store_info || {};
+            const storeName = store.name || "eReady 汐止康寧店";
+            const addr = store.address || "新北市汐止區康寧街470號";
+            const tel = store.phone || "02-2695-1112";
+            const dateStr = String(b.booking_date || "");
+            const timeStr = String(b.booking_time || "10:00");
+            const [yStr, mStr, dStr] = dateStr.split("-");
+            const y = parseInt(yStr, 10) || 2026;
+            const m = parseInt(mStr, 10) || 1;
+            const d = parseInt(dStr, 10) || 1;
+
+            const [hhStr, mmStr] = timeStr.split(":");
+            let hh = parseInt(hhStr, 10);
+            if (isNaN(hh)) hh = 10;
+            let mm = parseInt(mmStr, 10);
+            if (isNaN(mm)) mm = 0;
+
+            let endHh = hh + 1;
+            let endMm = mm;
+            if (endHh >= 24) { endHh = 23; endMm = 59; }
+
+            const pad2 = n => String(n).padStart(2, "0");
+            const ymd = `${y}${pad2(m)}${pad2(d)}`;
+            const startDT = `${ymd}T${pad2(hh)}${pad2(mm)}00`;
+            const endDT = `${ymd}T${pad2(endHh)}${pad2(endMm)}00`;
+
+            const isMaint = b.form_type === "maintenance";
+            const title = `【${storeName}】${b.service_name || "門市預約"} (${b.booking_no || ""})`;
+            const detailLines = [
+                `📋 預約單號：${b.booking_no || "-"}`,
+                `🛠️ 服務項目：${b.service_name || "-"}`,
+                `📅 預約時間：${dateStr} ${timeStr}`,
+                `👤 預約姓名：${b.customer_name || "-"}`,
+                `📞 聯絡電話：${b.customer_phone || "-"}`
+            ];
+            if (isMaint) {
+                detailLines.push(`🛵 車牌號碼：${b.license_plate || "-"}`);
+                detailLines.push(`🔧 預約需求：${b.maintenance_type || "-"}`);
+                if (b.repair_notes) detailLines.push(`📝 需求說明：${b.repair_notes}`);
+            } else {
+                detailLines.push(`🏍️ 試乘車種：${b.test_ride_model || "-"}`);
+                if (b.repair_notes) detailLines.push(`📝 備註說明：${b.repair_notes}`);
+            }
+            detailLines.push(`📍 門市地址：${addr}`);
+            detailLines.push(`📞 門市電話：${tel}`);
+
+            const addUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+                + "&text=" + encodeURIComponent(title)
+                + "&dates=" + startDT + "/" + endDT
+                + "&ctz=Asia/Taipei"
+                + "&details=" + encodeURIComponent(detailLines.join("\n"))
+                + "&location=" + encodeURIComponent(addr);
+
+            const dayViewUrl = `https://calendar.google.com/calendar/r/day/${y}/${m}/${d}`;
+            return { addUrl, dayViewUrl };
+        }
+
         function renderBookingConfirmation(b) {
             const isMaint = b.form_type === "maintenance";
             const receiptBox = document.getElementById("bookingReceiptBox");
+            const calUrls = buildGoogleCalendarUrls(b);
 
             let extraHtml = "";
             if (isMaint) {
@@ -1215,6 +1279,12 @@
                     <span class="text-[#2b2927]">${b.customer_phone}</span>
                 </div>
                 ${extraHtml}
+                <div class="pt-3 text-center">
+                    <a href="${calUrls.addUrl}" target="_blank" rel="noopener"
+                        class="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#f2f7f7] hover:bg-[#e3eeee] border border-[#bfd4d6] text-[#253e42] font-bold text-xs sm:text-sm transition">
+                        <i class="fa-regular fa-calendar-plus"></i> 📅 一鍵加入 Google 行事曆
+                    </a>
+                </div>
             `;
         }
 
@@ -1260,6 +1330,7 @@
 
                 container.innerHTML = list.map(b => {
                     const isCancelled = b.status === "cancelled";
+                    const calUrls = buildGoogleCalendarUrls(b);
                     const statusBadge = isCancelled
                         ? `<span class="px-2.5 py-0.5 rounded-full text-xs bg-[#ece7df] text-[#7a746c]">已取消</span>`
                         : (b.status === "completed"
@@ -1281,13 +1352,21 @@
                                 <div class="text-base font-bold text-[#c27849]">${b.booking_date} ${b.booking_time}</div>
                                 <div class="text-xs text-[#5c574f]">${detailText}</div>
                             </div>
-                            ${b.status === "confirmed" ? `
-                            <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                ${b.status === "confirmed" ? `
+                                <a href="${calUrls.addUrl}" target="_blank" rel="noopener"
+                                    class="px-3.5 py-2 rounded-xl border border-[#bfd4d6] bg-[#f2f7f7] text-[#253e42] hover:bg-[#e3eeee] text-xs font-medium transition inline-flex items-center gap-1">
+                                    📅 加入行事曆
+                                </a>
                                 <button onclick="cancelCustomerBooking('${b.booking_no}', '${b.customer_phone}')"
                                     class="px-3.5 py-2 rounded-xl border border-[#e3c5b4] text-[#a8552a] hover:bg-[#fff3ed] text-xs font-medium transition">
                                     取消預約
-                                </button>
-                            </div>` : ""}
+                                </button>` : (isCancelled ? `
+                                <a href="${calUrls.dayViewUrl}" target="_blank" rel="noopener"
+                                    class="px-3.5 py-2 rounded-xl border border-[#dcd5ca] bg-[#faf8f5] text-[#6e6a64] hover:bg-[#f0ece4] text-xs font-medium transition inline-flex items-center gap-1">
+                                    📅 開啟行事曆移除行程
+                                </a>` : "")}
+                            </div>
                         </div>
                     `;
                 }).join("");
