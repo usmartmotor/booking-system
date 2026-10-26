@@ -624,20 +624,61 @@
                             </label>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">
-                                LINE Messaging API — Channel Access Token (長效權杖)
-                            </label>
-                            <input type="password" id="cfgLineToken" placeholder="請貼上 LINE Developers 的 Channel Access Token"
-                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold text-[#253e42] flex items-center gap-1.5">
+                                    <span class="px-2 py-0.5 rounded bg-[#253e42] text-white text-[11px]">主力 1 號機</span>
+                                    優先發送之員工群組機器人
+                                </span>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">
+                                    1 號機 — Channel Access Token (長效權杖)
+                                </label>
+                                <input type="password" id="cfgLineToken" placeholder="請貼上 1 號機 LINE Developers 的 Channel Access Token"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono bg-white">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">
+                                    1 號機 — 員工群組 Group ID (或接收通知之 User ID)
+                                </label>
+                                <input type="text" id="cfgLineStaffGroupId" placeholder="例：C1234567890abcdef... (將機器人拉進員工群組後可於下方自動捕捉或自動配對)"
+                                    class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono bg-white">
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">
-                                員工群組 Group ID (或接收通知之 User ID，多個可以逗號分隔)
-                            </label>
-                            <input type="text" id="cfgLineStaffGroupId" placeholder="例：C1234567890abcdef... (將機器人拉進員工群組後可於下方自動捕捉)"
-                                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                        <!-- 方案 A：多組 LINE 機器人 Token 自動輪替池 -->
+                        <div class="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <div class="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-rotate text-amber-600"></i> 【方案 A】多組 LINE 機器人 Token 自動輪替池（免費額度倍增）
+                                    </div>
+                                    <p class="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                                        當 1 號機本月免費 200 則用完（HTTP 429）時，系統會<strong>自動無縫切換 2 號機、3 號機...</strong>繼續往同一個員工群組發通知！（注意：每台機器人在同一群組會有各自的 `C...` 群組 ID，留空時系統會自動幫您從 Webhook 紀錄配對）
+                                    </p>
+                                </div>
+                                <button type="button" onclick="addBackupBotRow()"
+                                    class="px-3 py-1.5 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs font-bold shrink-0 flex items-center gap-1 transition">
+                                    <i class="fa-solid fa-plus"></i> 新增備援機器人
+                                </button>
+                            </div>
+
+                            <div id="backupBotsListContainer" class="space-y-2.5">
+                                <!-- JS 動態渲染 2號機、3號機... 設定列 -->
+                            </div>
+
+                            <div class="pt-1 flex flex-wrap items-center justify-between gap-2">
+                                <button type="button" onclick="checkAllLineBotsStatus()" id="btnCheckBotsQuota"
+                                    class="w-full py-2 px-3 rounded-xl bg-white hover:bg-amber-100/60 border border-amber-300 text-amber-900 font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs">
+                                    <i class="fa-solid fa-chart-pie text-amber-600"></i> 📊 儲存並一鍵檢測所有機器人狀態 ＆ 本月剩餘免費額度（含自動配對群組 ID）
+                                </button>
+                            </div>
+
+                            <div id="lineBotsQuotaStatusBox" class="hidden space-y-2 pt-1">
+                                <!-- JS 動態顯示各台機器人名稱、綁定群組人數、本月已用/剩餘免費則數 -->
+                            </div>
                         </div>
 
                         <!-- 自動捕捉到的群組 ID 清單 -->
@@ -646,7 +687,7 @@
                                 <i class="fa-solid fa-satellite-dish"></i> Webhook 自動偵測到的員工群組 / ID 清單：
                             </div>
                             <p class="text-[11px] text-emerald-700">
-                                💡 將您的 LINE Webhook URL 設為 <code class="bg-white px-1.5 py-0.5 rounded border">/api/line/webhook</code> 並將機器人邀請進員工群組說話，群組 ID 會自動顯示於此：
+                                💡 將每台機器人的 LINE Webhook URL 都設為您的 GAS 網址，並邀請進同一個員工群組後在群組隨意發一句話，各機器人的專屬群組 ID 就會自動顯示於此（點上方「檢測所有機器人狀態」即可自動配對，無須手動分辨！）：
                             </p>
                             <div id="detectedLineTargetsBox" class="space-y-1 pt-1">
                                 <!-- JS 渲染偵測到的群組 ID -->
@@ -2548,8 +2589,10 @@
         }
 
         // ==========================================
-        // 5. LINE 與 Email 通知設定
+        // 5. LINE 與 Email 通知設定 (含多組機器人自動輪替池)
         // ==========================================
+        let backupBotsState = [];
+
         function populateNotificationSettings() {
             const cfg = adminData.settings.notification_config || {};
             document.getElementById("cfgEnableLineStaff").checked = cfg.enable_line_staff_notify !== false;
@@ -2559,6 +2602,15 @@
             document.getElementById("cfgLineToken").value = cfg.line_channel_access_token || "";
             document.getElementById("cfgLineStaffGroupId").value = cfg.line_staff_group_id || "";
             document.getElementById("cfgLineLiffId").value = cfg.line_liff_id || "";
+
+            backupBotsState = Array.isArray(cfg.line_backup_bots)
+                ? cfg.line_backup_bots.map((b, idx) => ({
+                    name: b.name || `${idx + 2}號機 (備援)`,
+                    token: b.token || "",
+                    group_id: b.group_id || ""
+                }))
+                : [];
+            renderBackupBotsList();
 
             document.getElementById("cfgSmtpHost").value = cfg.smtp_host || "smtp.gmail.com";
             document.getElementById("cfgSmtpPort").value = cfg.smtp_port || 587;
@@ -2575,21 +2627,216 @@
                 tBox.innerHTML = `<div class="text-slate-400 text-[11px]">尚無偵測紀錄（當機器人被加入群組並收到訊息後會自動出現）</div>`;
             } else {
                 tBox.innerHTML = targets.map(t => `
-                    <div class="flex items-center justify-between bg-white p-2 rounded-lg border border-emerald-200">
+                    <div class="flex flex-wrap items-center justify-between gap-1.5 bg-white p-2 rounded-lg border border-emerald-200">
                         <div>
                             <span class="font-mono font-bold text-slate-800">${t.target_id}</span>
                             <span class="text-[10px] text-slate-500 ml-1">(${t.target_type} / ${t.last_message || ''})</span>
                         </div>
-                        <button type="button" onclick="document.getElementById('cfgLineStaffGroupId').value='${t.target_id}'"
-                            class="px-2 py-1 rounded bg-emerald-600 text-white text-[10px] font-bold">
-                            套用此 ID
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <button type="button" onclick="document.getElementById('cfgLineStaffGroupId').value='${t.target_id}'; showToast('已填入 1 號機群組 ID');"
+                                class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold">
+                                填入 1 號機
+                            </button>
+                            <button type="button" onclick="applyTargetToBackupBot('${t.target_id}')"
+                                class="px-2 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold">
+                                填入備援機
+                            </button>
+                        </div>
                     </div>
                 `).join("");
             }
         }
 
+        function syncBackupBotsStateFromDOM() {
+            const rows = document.querySelectorAll(".backup-bot-row");
+            if (!rows.length) return;
+            backupBotsState = Array.from(rows).map((row, idx) => ({
+                name: (row.querySelector(".bb-name")?.value || `${idx + 2}號機 (備援)`).trim(),
+                token: (row.querySelector(".bb-token")?.value || "").trim(),
+                group_id: (row.querySelector(".bb-gid")?.value || "").trim()
+            }));
+        }
+
+        function renderBackupBotsList() {
+            const container = document.getElementById("backupBotsListContainer");
+            if (!container) return;
+            if (backupBotsState.length === 0) {
+                container.innerHTML = `
+                    <div class="p-3 rounded-xl bg-white/80 border border-dashed border-amber-300 text-center text-[11px] text-amber-800">
+                        目前尚未新增備援機器人。點選右上角「<strong>＋ 新增備援機器人</strong>」即可加入 2 號機、3 號機，每多加 1 台免費機器人，每月就多 200 則免費額度！
+                    </div>
+                `;
+                return;
+            }
+            container.innerHTML = backupBotsState.map((b, idx) => {
+                const botNum = idx + 2;
+                const safeName = (b.name || `${botNum}號機 (備援)`).replace(/"/g, "&quot;");
+                const safeToken = (b.token || "").replace(/"/g, "&quot;");
+                const safeGid = (b.group_id || "").replace(/"/g, "&quot;");
+                return `
+                    <div class="backup-bot-row p-3 rounded-xl bg-white border border-amber-200 space-y-2 shadow-2xs">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-1.5">
+                                <span class="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold">備援 ${botNum} 號機</span>
+                                <input type="text" class="bb-name px-2 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-800 w-36"
+                                    value="${safeName}" placeholder="例：${botNum}號機 (備援)">
+                            </div>
+                            <button type="button" onclick="removeBackupBotRow(${idx})"
+                                class="text-rose-500 hover:text-rose-700 text-xs font-bold px-2 py-0.5 rounded hover:bg-rose-50 transition">
+                                <i class="fa-solid fa-trash-can mr-0.5"></i>移除
+                            </button>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-0.5">${botNum} 號機 — Channel Access Token *</label>
+                            <input type="password" class="bb-token w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono"
+                                value="${safeToken}" placeholder="貼上 ${botNum} 號機的 Channel Access Token">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-0.5">${botNum} 號機 — 員工群組 Group ID <span class="text-amber-700 font-normal">(選填，留空時按下方「檢測」會自動配對)</span></label>
+                            <input type="text" class="bb-gid w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono"
+                                value="${safeGid}" placeholder="留空可自動配對，或貼上 ${botNum} 號機的 C 開頭群組 ID">
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function addBackupBotRow() {
+            syncBackupBotsStateFromDOM();
+            const nextNum = backupBotsState.length + 2;
+            backupBotsState.push({
+                name: `${nextNum}號機 (備援)`,
+                token: "",
+                group_id: ""
+            });
+            renderBackupBotsList();
+        }
+
+        function removeBackupBotRow(idx) {
+            syncBackupBotsStateFromDOM();
+            backupBotsState.splice(idx, 1);
+            renderBackupBotsList();
+        }
+
+        function applyTargetToBackupBot(targetId) {
+            syncBackupBotsStateFromDOM();
+            if (backupBotsState.length === 0) {
+                backupBotsState.push({
+                    name: "2號機 (備援)",
+                    token: "",
+                    group_id: targetId
+                });
+            } else {
+                const emptyRow = backupBotsState.find(b => !b.group_id);
+                if (emptyRow) {
+                    emptyRow.group_id = targetId;
+                } else {
+                    backupBotsState[backupBotsState.length - 1].group_id = targetId;
+                }
+            }
+            renderBackupBotsList();
+            showToast("已將群組 ID 填入備援機器人！");
+        }
+
+        async function checkAllLineBotsStatus() {
+            const btn = document.getElementById("btnCheckBotsQuota");
+            const box = document.getElementById("lineBotsQuotaStatusBox");
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存並連線 LINE 檢測各機器人額度與群組配對...`;
+
+            try {
+                await saveNotificationConfig();
+                const res = await fetch("/api/admin/line-bots/check", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+
+                if (!data.ok) {
+                    alert(data.error || "檢測失敗");
+                    return;
+                }
+
+                if (data.updated_config) {
+                    adminData.settings.notification_config = data.updated_config;
+                    populateNotificationSettings();
+                }
+
+                const bots = data.bots || [];
+                box.classList.remove("hidden");
+                if (bots.length === 0) {
+                    box.innerHTML = `<div class="p-3 rounded-xl bg-white border border-rose-200 text-xs text-rose-700 font-bold">尚未填入任何 LINE Channel Access Token，請先填寫 1 號機 Token。</div>`;
+                    return;
+                }
+
+                const summaryHtml = `
+                    <div class="p-2.5 rounded-xl bg-emerald-900 text-white text-xs flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-bold"><i class="fa-solid fa-layer-group mr-1"></i>機器人輪替池總計（共 ${bots.length} 台機器人）</span>
+                        <span class="font-extrabold text-emerald-200">本月總剩餘可用額度：${data.total_remaining || 0} 則</span>
+                    </div>
+                `;
+
+                const rowsHtml = bots.map(b => {
+                    if (!b.token_valid) {
+                        return `
+                            <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-1">
+                                <div class="font-extrabold text-rose-800">❌ ${b.name}</div>
+                                <div class="text-rose-600">${b.error || "Token 無效"}</div>
+                            </div>
+                        `;
+                    }
+                    const isFull = b.quota_remaining <= 0;
+                    const badgeCls = isFull
+                        ? "bg-rose-100 text-rose-700 border-rose-200"
+                        : (b.is_primary ? "bg-emerald-100 text-emerald-800 border-emerald-200" : "bg-sky-100 text-sky-800 border-sky-200");
+                    const statusLabel = isFull
+                        ? "⚠️ 本月額度已滿 (自動交棒下一台)"
+                        : (b.is_primary ? "🟢 主力發送中" : "🔵 備援待命中");
+                    const estBookings = b.group_members > 0 ? Math.floor(b.quota_remaining / b.group_members) : b.quota_remaining;
+
+                    return `
+                        <div class="p-3 rounded-xl bg-white border border-slate-200 text-xs space-y-1.5 shadow-2xs">
+                            <div class="flex flex-wrap items-center justify-between gap-1.5">
+                                <div class="font-extrabold text-slate-900">
+                                    🤖 ${b.name} — <span class="text-[#253e42]">${b.bot_display_name || "LINE 機器人"}</span>
+                                    ${b.bot_basic_id ? `<span class="text-[11px] text-slate-400 font-mono">(${b.bot_basic_id})</span>` : ""}
+                                </div>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeCls}">${statusLabel}</span>
+                            </div>
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                                <span>📊 本月免費額度：已用 <strong>${b.quota_used}</strong> / ${b.quota_limit} 則</span>
+                                <span class="font-bold text-emerald-700">剩餘 ${b.quota_remaining} 則 ${b.group_members > 0 ? `（約可再推播 ${estBookings} 筆至 ${b.group_members} 人群組）` : ""}</span>
+                            </div>
+                            ${b.group_ok ? `
+                                <div class="text-[11px] text-emerald-700 font-semibold">
+                                    ✅ 已配對群組：<strong>${b.group_name}</strong> ${b.group_members > 0 ? `（群組共 ${b.group_members} 人）` : ""} <span class="font-mono text-[10px] text-slate-400">${b.group_id}</span>
+                                    ${b.auto_paired ? `<span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">⚡ 已自動配對並儲存</span>` : ""}
+                                </div>
+                            ` : `
+                                <div class="text-[11px] text-rose-600 font-semibold">
+                                    ⚠️ ${b.error || "尚未配對群組 ID"}
+                                </div>
+                            `}
+                        </div>
+                    `;
+                }).join("");
+
+                box.innerHTML = summaryHtml + rowsHtml;
+                showToast("已完成所有 LINE 機器人額度與群組檢測！");
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                alert("檢測連線異常，請確認已更新 Google Apps Script 部署版本");
+            }
+        }
+
         async function saveNotificationConfig() {
+            syncBackupBotsStateFromDOM();
+            const cleanBackups = backupBotsState.filter(b => b.token || b.group_id);
             const senderName = document.getElementById("cfgSmtpSenderName").value.trim();
             const smtpUser = document.getElementById("cfgSmtpUser").value.trim();
             const alertEmail = document.getElementById("cfgAlertEmail") ? document.getElementById("cfgAlertEmail").value.trim() : "";
@@ -2599,6 +2846,7 @@
                 enable_email_customer_notify: document.getElementById("cfgEnableEmailCustomer").checked,
                 line_channel_access_token: document.getElementById("cfgLineToken").value.trim(),
                 line_staff_group_id: document.getElementById("cfgLineStaffGroupId").value.trim(),
+                line_backup_bots: cleanBackups,
                 line_liff_id: document.getElementById("cfgLineLiffId").value.trim(),
                 smtp_host: document.getElementById("cfgSmtpHost").value.trim(),
                 smtp_port: parseInt(document.getElementById("cfgSmtpPort").value, 10) || 587,
@@ -2616,6 +2864,7 @@
             });
             const data = await res.json();
             if (data.ok) {
+                if (adminData.settings) adminData.settings.notification_config = data.value || payload;
                 showToast("LINE 與 Email 通知設定已儲存！");
             }
         }
