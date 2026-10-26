@@ -648,15 +648,15 @@
                             </div>
                         </div>
 
-                        <!-- 方案 A：多組 LINE 機器人 Token 自動輪替池 -->
+                        <!-- 方案 A：多組 LINE 機器人 Token 自動輪替池 (換班接力法) -->
                         <div class="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 space-y-3">
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                     <div class="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
-                                        <i class="fa-solid fa-rotate text-amber-600"></i> 【方案 A】多組 LINE 機器人 Token 自動輪替池（免費額度倍增）
+                                        <i class="fa-solid fa-rotate text-amber-600"></i> 【用法一】10 人群組「多機器人換班接力池」（免費額度倍增）
                                     </div>
                                     <p class="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                                        當 1 號機本月免費 200 則用完（HTTP 429）時，系統會<strong>自動無縫切換 2 號機、3 號機...</strong>繼續往同一個員工群組發通知！（注意：每台機器人在同一群組會有各自的 `C...` 群組 ID，留空時系統會自動幫您從 Webhook 紀錄配對）
+                                        因 LINE 官方限制「同一群組同時只能有 1 台機器人」，請先將 2 號機、3 號機、4 號機的 Token 預先填在下方（群組 ID 留空即可）。當 1 號機 200 則用完時，只要在手機群組<strong>「將 1 號機移出群組 ➔ 邀請 2 號機進群組」</strong>，2 號機進群瞬間就會<strong>自動完成綁定並立即接手推播</strong>，連後台都不用開！
                                     </p>
                                 </div>
                                 <button type="button" onclick="addBackupBotRow()"
@@ -678,6 +678,21 @@
 
                             <div id="lineBotsQuotaStatusBox" class="hidden space-y-2 pt-1">
                                 <!-- JS 動態顯示各台機器人名稱、綁定群組人數、本月已用/剩餘免費則數 -->
+                            </div>
+                        </div>
+
+                        <!-- 用法三：10 人大群組「輸入關鍵字 0 額度免費查單」說明卡 -->
+                        <div class="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200 text-xs space-y-1.5">
+                            <div class="font-extrabold text-sky-900 flex items-center gap-1.5">
+                                <i class="fa-solid fa-wand-magic-sparkles text-sky-600"></i> 【用法三】員工群組「輸入關鍵字 0 額度免費查單」（消耗 0 則額度！）
+                            </div>
+                            <p class="text-[11px] text-sky-800 leading-relaxed">
+                                員工在 LINE 群組輸入以下<strong>完全符合</strong>的三個關鍵字指令，群組內的機器人會透過 <code class="bg-white px-1 rounded border">Reply API</code> <strong>免費回覆（10 人群組也消耗 0 則額度）</strong>：
+                            </p>
+                            <div class="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                                <div class="bg-white px-2.5 py-2 rounded-lg border border-sky-200 text-center"><strong class="text-[#253e42] text-xs">今日預約</strong><div class="text-[10px] text-slate-500 mt-0.5">查看今天預約清單</div></div>
+                                <div class="bg-white px-2.5 py-2 rounded-lg border border-sky-200 text-center"><strong class="text-[#253e42] text-xs">明日預約</strong><div class="text-[10px] text-slate-500 mt-0.5">查看明天預約清單</div></div>
+                                <div class="bg-white px-2.5 py-2 rounded-lg border border-sky-200 text-center"><strong class="text-[#253e42] text-xs">查詢額度</strong><div class="text-[10px] text-slate-500 mt-0.5">查看各機剩餘則數</div></div>
                             </div>
                         </div>
 
@@ -2790,16 +2805,27 @@
                         `;
                     }
                     const isFull = b.quota_remaining <= 0;
-                    const badgeCls = isFull
-                        ? "bg-rose-100 text-rose-700 border-rose-200"
-                        : (b.is_primary ? "bg-emerald-100 text-emerald-800 border-emerald-200" : "bg-sky-100 text-sky-800 border-sky-200");
-                    const statusLabel = isFull
-                        ? "⚠️ 本月額度已滿 (自動交棒下一台)"
-                        : (b.is_primary ? "🟢 主力發送中" : "🔵 備援待命中");
+                    let badgeCls = "bg-slate-100 text-slate-600 border-slate-200";
+                    let statusLabel = "⚪ 場外待命備援中（未在群組內）";
+                    let cardBorderCls = "border-slate-200 bg-white";
+
+                    if (b.group_ok && !isFull) {
+                        badgeCls = "bg-emerald-100 text-emerald-800 border-emerald-300";
+                        statusLabel = "🟢 目前駐群發送中（群組值班中）";
+                        cardBorderCls = "border-emerald-400 bg-emerald-50/20 ring-1 ring-emerald-200";
+                    } else if (b.group_ok && isFull) {
+                        badgeCls = "bg-rose-100 text-rose-700 border-rose-200";
+                        statusLabel = "🔴 本月額度已滿（請移出並換下一台入群）";
+                        cardBorderCls = "border-rose-300 bg-rose-50/20";
+                    } else if (!b.group_ok && isFull) {
+                        badgeCls = "bg-rose-50 text-rose-600 border-rose-200";
+                        statusLabel = "⚪ 本月額度已滿（未在群組內）";
+                    }
+
                     const estBookings = b.group_members > 0 ? Math.floor(b.quota_remaining / b.group_members) : b.quota_remaining;
 
                     return `
-                        <div class="p-3 rounded-xl bg-white border border-slate-200 text-xs space-y-1.5 shadow-2xs">
+                        <div class="p-3 rounded-xl border ${cardBorderCls} text-xs space-y-1.5 shadow-2xs">
                             <div class="flex flex-wrap items-center justify-between gap-1.5">
                                 <div class="font-extrabold text-slate-900">
                                     🤖 ${b.name} — <span class="text-[#253e42]">${b.bot_display_name || "LINE 機器人"}</span>
@@ -2813,12 +2839,12 @@
                             </div>
                             ${b.group_ok ? `
                                 <div class="text-[11px] text-emerald-700 font-semibold">
-                                    ✅ 已配對群組：<strong>${b.group_name}</strong> ${b.group_members > 0 ? `（群組共 ${b.group_members} 人）` : ""} <span class="font-mono text-[10px] text-slate-400">${b.group_id}</span>
+                                    ✅ 目前在群組內：<strong>${b.group_name}</strong> ${b.group_members > 0 ? `（群組共 ${b.group_members} 人）` : ""} <span class="font-mono text-[10px] text-slate-400">${b.group_id}</span>
                                     ${b.auto_paired ? `<span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">⚡ 已自動配對並儲存</span>` : ""}
                                 </div>
                             ` : `
-                                <div class="text-[11px] text-rose-600 font-semibold">
-                                    ⚠️ ${b.error || "尚未配對群組 ID"}
+                                <div class="text-[11px] text-slate-500">
+                                    ⚪ ${b.error || "目前未在群組內（場外待命備援中，輪到此機器人值班時再邀入群組即可）"}
                                 </div>
                             `}
                         </div>
