@@ -216,7 +216,12 @@
                         </button>
                     </div>
 
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" onclick="openCalendarSlotModal()"
+                            class="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-700 text-xs font-extrabold flex items-center gap-1.5 transition"
+                            title="手動關閉特定日期與時段（亦可直接點擊下方行事曆格子）">
+                            <i class="fa-solid fa-ban"></i> 手動關閉時段
+                        </button>
                         <button type="button" onclick="resetAdminCalendarToToday()"
                             class="px-3 py-1.5 rounded-xl border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-700 text-xs font-extrabold flex items-center gap-1.5 transition">
                             <i class="fa-solid fa-calendar-day"></i> 顯示本週
@@ -269,6 +274,7 @@
                         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-[#0099ff] inline-block"></span>維修保養</span>
                         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-[#059669] inline-block"></span>賞車試乘</span>
                         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-slate-600 inline-block"></span>已完成</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs bg-amber-100 border border-amber-400 inline-block"></span>手動關閉時段 (點擊行事曆時段格可關閉/編輯)</span>
                         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-xs calendar-closed-hatch border border-amber-300 inline-block"></span>店休/非營業時段</span>
                     </div>
                 </div>
@@ -1254,6 +1260,116 @@
         </div>
     </div>
 
+    <!-- 週行事曆：點擊時段格「手動關閉 / 編輯 / 重新開放預約時段」管理視窗 -->
+    <div id="calendarSlotClosureModal" onclick="if(event.target===this) closeCalendarSlotModal()"
+        class="fixed inset-0 z-50 hidden bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div id="slotModalHeader" class="px-5 py-4 bg-[#253e42] text-white flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="slotModalStatusBadge" class="px-2 py-0.5 rounded bg-white/20 text-xs font-bold">時段開放狀態設定</span>
+                    </div>
+                    <h3 id="slotModalTitle" class="text-lg font-extrabold mt-1">手動關閉預約時段</h3>
+                </div>
+                <button type="button" onclick="closeCalendarSlotModal()" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4 text-sm max-h-[78vh] overflow-y-auto">
+                <input type="hidden" id="slotModalHolidayId" value="">
+
+                <!-- 目前已關閉提示橫幅 (編輯既有手動關閉時段時顯示) -->
+                <div id="slotModalExistingBanner" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-1">
+                    <div class="font-extrabold flex items-center gap-1.5 text-rose-700">
+                        <i class="fa-solid fa-ban"></i> 此時段目前處於「已手動關閉」狀態（前台不開放預約）
+                    </div>
+                    <div class="text-[11px] text-amber-800">
+                        您可以修改下方的關閉時間與備註原因，或點擊下方綠色按鈕<strong>「重新開放此時段」</strong>恢復客戶預約。
+                    </div>
+                </div>
+
+                <!-- 既有客戶預約提醒橫幅 -->
+                <div id="slotModalBookingWarning" class="hidden p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900"></div>
+
+                <!-- 日期選擇 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">📅 選擇日期 *</label>
+                    <input type="date" id="slotModalDate"
+                        class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 bg-white">
+                </div>
+
+                <!-- 關閉範圍模式 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">🕒 關閉範圍 *</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label id="slotModeLabelPartial" class="flex items-center gap-2 p-2.5 rounded-xl border-2 border-[#253e42] bg-slate-50 cursor-pointer text-xs font-bold text-slate-800">
+                            <input type="radio" name="slotModalScopeRadio" id="slotModalScopePartial" value="partial" checked onchange="toggleSlotModalScopeUI()" class="text-[#253e42]">
+                            <span>關閉指定時段</span>
+                        </label>
+                        <label id="slotModeLabelFull" class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer text-xs font-bold text-slate-600">
+                            <input type="radio" name="slotModalScopeRadio" id="slotModalScopeFull" value="full" onchange="toggleSlotModalScopeUI()" class="text-[#253e42]">
+                            <span>關閉整天 (全日店休)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 起訖時間選擇 (局部時段關閉時顯示) -->
+                <div id="slotModalTimeRangeBox" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">開始時間</label>
+                        <select id="slotModalStartTime" onchange="onSlotModalStartChange()"
+                            class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm font-extrabold text-slate-800">
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">結束時間</label>
+                        <select id="slotModalEndTime"
+                            class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm font-extrabold text-slate-800">
+                        </select>
+                    </div>
+                    <div class="col-span-2 text-[11px] text-slate-500">
+                        💡 例：欲關閉下午 3 點（15:00）這一個時段，請選 <strong>15:00 ～ 16:00</strong>；若要連關兩小時可選 <strong>15:00 ～ 17:00</strong>。
+                    </div>
+                </div>
+
+                <!-- 關閉原因 / 行事曆備註 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">📝 關閉原因 / 行事曆備註 *</label>
+                    <input type="text" id="slotModalReason" placeholder="例：其他事項安排、外務公出、時段暫停開放" value="其他事項安排"
+                        class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 bg-white">
+                    <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span class="text-[11px] text-slate-400 font-semibold">快速帶入：</span>
+                        <button type="button" onclick="setSlotQuickReason('其他事項安排')" class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition">其他事項安排</button>
+                        <button type="button" onclick="setSlotQuickReason('時段暫停開放')" class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition">時段暫停開放</button>
+                        <button type="button" onclick="setSlotQuickReason('外務/公出')" class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition">外務/公出</button>
+                        <button type="button" onclick="setSlotQuickReason('內部會議/訓練')" class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition">內部會議/訓練</button>
+                        <button type="button" onclick="setSlotQuickReason('技師忙碌暫停')" class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition">技師忙碌暫停</button>
+                        <button type="button" onclick="setSlotQuickReason('臨時店休')" class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition">臨時店休</button>
+                    </div>
+                </div>
+
+                <!-- 底部操作按鈕 -->
+                <div class="pt-3 border-t border-slate-200 space-y-2.5">
+                    <button type="button" id="btnReopenSlotClosure" onclick="reopenCalendarSlotClosure()"
+                        class="hidden w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold shadow-xs transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-lock-open"></i> 🔓 重新開放此時段（解除關閉，恢復客戶預約）
+                    </button>
+                    <div class="flex items-center justify-end gap-2">
+                        <button type="button" onclick="closeCalendarSlotModal()"
+                            class="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold">
+                            取消
+                        </button>
+                        <button type="button" id="btnSaveSlotClosure" onclick="saveCalendarSlotClosure()"
+                            class="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-extrabold shadow-xs transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-ban"></i> 確認關閉此時段
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ==========================================
          Admin JavaScript Logic
          ========================================== -->
@@ -1493,8 +1609,18 @@
             return s.substring(0, 10);
         }
 
+        function timeStrToMins(t) {
+            const p = String(t || "").trim().split(":");
+            if (p.length < 2) return -1;
+            const hh = parseInt(p[0], 10);
+            const mm = parseInt(p[1], 10);
+            if (isNaN(hh) || isNaN(mm)) return -1;
+            return hh * 60 + mm;
+        }
+
         function checkCalendarDayHeaderStatus(dateStr, monIdx) {
             const holidays = adminData.holidays || [];
+            const partials = [];
             for (let i = 0; i < holidays.length; i++) {
                 const h = holidays[i];
                 const sDate = normalizeDateYMD(h.start_date);
@@ -1502,9 +1628,9 @@
                 if (dateStr >= sDate && dateStr <= eDate) {
                     const isFull = Number(h.is_full_day) === 1 || h.is_full_day === true || String(h.is_full_day).toLowerCase() === "true" || !h.closed_start_time;
                     if (isFull) {
-                        return { isFullClosed: true, badge: h.reason || "特定休假", type: "holiday" };
+                        return { isFullClosed: true, badge: h.reason || "特定休假", type: "holiday", holiday: h };
                     }
-                    return { isFullClosed: false, badge: `${h.reason || "店休"} (${h.closed_start_time}~${h.closed_end_time})`, type: "partial" };
+                    partials.push(h);
                 }
             }
             const bhAll = (adminData.settings && adminData.settings.business_hours) || {};
@@ -1515,13 +1641,19 @@
             } else if (monIdx === 6) {
                 return { isFullClosed: true, badge: "週日公休", type: "weekly_closed" };
             }
+            if (partials.length === 1) {
+                const p0 = partials[0];
+                return { isFullClosed: false, badge: `${p0.closed_start_time}~${p0.closed_end_time} 關閉`, type: "partial" };
+            } else if (partials.length > 1) {
+                return { isFullClosed: false, badge: `${partials.length} 個時段已關閉`, type: "partial" };
+            }
             return { isFullClosed: false, badge: "", type: "open" };
         }
 
         function checkCalendarHourClosed(dateStr, monIdx, hourInt) {
-            // 1. 檢查特定店休 / 休假日
+            // 1. 檢查特定店休 / 休假日 / 手動關閉時段
             const holidays = adminData.holidays || [];
-            const hStr = String(hourInt).padStart(2, "0") + ":00";
+            const hrMins = hourInt * 60;
             for (let i = 0; i < holidays.length; i++) {
                 const h = holidays[i];
                 const sDate = normalizeDateYMD(h.start_date);
@@ -1529,10 +1661,22 @@
                 if (dateStr >= sDate && dateStr <= eDate) {
                     const isFull = Number(h.is_full_day) === 1 || h.is_full_day === true || String(h.is_full_day).toLowerCase() === "true" || !h.closed_start_time;
                     if (isFull) {
-                        return { closed: true, reason: h.reason || "特定休假" };
+                        return { closed: true, reason: h.reason || "特定休假", type: "full_holiday", holiday: h };
                     }
-                    if (h.closed_start_time && h.closed_end_time && hStr >= h.closed_start_time && hStr < h.closed_end_time) {
-                        return { closed: true, reason: h.reason || "局部店休" };
+                }
+            }
+            for (let i = 0; i < holidays.length; i++) {
+                const h = holidays[i];
+                const sDate = normalizeDateYMD(h.start_date);
+                const eDate = normalizeDateYMD(h.end_date || h.start_date);
+                if (dateStr >= sDate && dateStr <= eDate) {
+                    const isFull = Number(h.is_full_day) === 1 || h.is_full_day === true || String(h.is_full_day).toLowerCase() === "true" || !h.closed_start_time;
+                    if (!isFull && h.closed_start_time && h.closed_end_time) {
+                        const ps = timeStrToMins(h.closed_start_time);
+                        const pe = timeStrToMins(h.closed_end_time);
+                        if (ps >= 0 && pe > ps && hrMins >= ps && hrMins < pe) {
+                            return { closed: true, reason: h.reason || "時段暫停開放", type: "partial_holiday", holiday: h };
+                        }
                     }
                 }
             }
@@ -1541,20 +1685,24 @@
             const bh = bhAll[String(monIdx)];
             if (bh) {
                 const isOpen = bh.is_open === true || Number(bh.is_open) === 1 || String(bh.is_open).toLowerCase() === "true";
-                if (!isOpen) return { closed: true, reason: "固定公休" };
+                if (!isOpen) return { closed: true, reason: "固定公休", type: "business_hours" };
                 const openH = parseInt(String(bh.open_time || "10:00").split(":")[0], 10);
                 const closeParts = String(bh.close_time || "21:00").split(":").map(Number);
                 const closeH = closeParts[1] > 0 ? closeParts[0] + 1 : closeParts[0];
                 if (hourInt < openH || hourInt >= closeH) {
-                    return { closed: true, reason: "非營業時段" };
+                    return { closed: true, reason: "非營業時段", type: "business_hours" };
                 }
-                if (bh.break_start && bh.break_end && hStr >= bh.break_start && hStr < bh.break_end) {
-                    return { closed: true, reason: "休息時段" };
+                if (bh.break_start && bh.break_end) {
+                    const bs = timeStrToMins(bh.break_start);
+                    const be = timeStrToMins(bh.break_end);
+                    if (bs >= 0 && be > bs && hrMins >= bs && hrMins < be) {
+                        return { closed: true, reason: "休息時段", type: "business_hours" };
+                    }
                 }
             } else if (monIdx === 6) {
-                return { closed: true, reason: "週日公休" };
+                return { closed: true, reason: "週日公休", type: "business_hours" };
             }
-            return { closed: false, reason: "" };
+            return { closed: false, reason: "", type: "open" };
         }
 
         function renderAdminWeeklyCalendar() {
@@ -1673,7 +1821,7 @@
                                 }
 
                                 return `
-                                    <div onclick="openCalendarBookingModal(${b.id})"
+                                    <div onclick="event.stopPropagation(); openCalendarBookingModal(${b.id})"
                                         onmouseenter="showCalendarHoverCard(event, ${b.id})"
                                         onmousemove="moveCalendarHoverCard(event)"
                                         onmouseleave="hideCalendarHoverCard()"
@@ -1692,13 +1840,55 @@
                                 `;
                             }).join("");
 
+                            // 若為手動關閉時段 (partial_holiday)，顯示醒目的「已手動關閉」可點擊編輯色塊
+                            let manualClosedCardHtml = "";
+                            if (closedInfo.type === "partial_holiday" && closedInfo.holiday) {
+                                const hObj = closedInfo.holiday;
+                                manualClosedCardHtml = `
+                                    <div onclick="event.stopPropagation(); openCalendarSlotModal('${d.ymd}', ${hr}, ${hObj.id})"
+                                        class="cursor-pointer rounded-md px-2 py-1.5 border border-amber-500/80 bg-amber-100/95 hover:bg-amber-200 text-amber-950 shadow-2xs transition select-none">
+                                        <div class="text-[10px] font-extrabold leading-tight flex items-center justify-between gap-1">
+                                            <span class="truncate"><i class="fa-solid fa-ban text-rose-600 mr-0.5"></i>${escAdminHtml(hObj.closed_start_time)}-${escAdminHtml(hObj.closed_end_time)}</span>
+                                            <span class="px-1 py-0.2 rounded bg-rose-600 text-white text-[9px] font-bold shrink-0">已關閉</span>
+                                        </div>
+                                        <div class="text-xs font-extrabold leading-snug mt-0.5 truncate text-rose-900">
+                                            ${escAdminHtml(closedInfo.reason)}
+                                        </div>
+                                        <div class="text-[10px] text-amber-800 truncate mt-0.5 font-semibold">
+                                            <i class="fa-regular fa-pen-to-square mr-0.5"></i>點此編輯 / 開放
+                                        </div>
+                                    </div>
+                                `;
+                            }
+
+                            // 開放時段格：滑鼠移上去時顯示「點此關閉時段」微提示
+                            let openHoverHintHtml = "";
+                            if (!closedInfo.closed && cellBookings.length === 0) {
+                                openHoverHintHtml = `
+                                    <div class="opacity-0 group-hover:opacity-100 transition-opacity h-full min-h-[52px] flex items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50/70 text-[11px] font-bold text-slate-500 hover:text-rose-600 select-none">
+                                        <i class="fa-solid fa-ban mr-1 text-[10px] text-rose-500"></i>點此關閉時段
+                                    </div>
+                                `;
+                            }
+
+                            const isInteractiveCell = !closedInfo.closed || closedInfo.type === "partial_holiday" || closedInfo.type === "full_holiday";
+                            const cellClickAttr = !closedInfo.closed
+                                ? `onclick="openCalendarSlotModal('${d.ymd}', ${hr})"`
+                                : ((closedInfo.type === "partial_holiday" || closedInfo.type === "full_holiday") && closedInfo.holiday
+                                    ? `onclick="openCalendarSlotModal('${d.ymd}', ${hr}, ${closedInfo.holiday.id})"`
+                                    : "");
+
                             const cellBgClass = closedInfo.closed
                                 ? "calendar-closed-hatch"
-                                : ("calendar-half-hour-line " + (d.isToday ? "bg-sky-50/20" : "bg-white"));
+                                : ("calendar-half-hour-line group hover:bg-amber-50/35 " + (d.isToday ? "bg-sky-50/20" : "bg-white"));
+
+                            const cellTitle = closedInfo.closed
+                                ? `${closedInfo.reason}${closedInfo.holiday ? '（點擊可編輯或重新開放）' : ''}`
+                                : `點擊可手動關閉 ${d.ymd} ${hrLabel} 時段`;
 
                             return `
-                                <div title="${closedInfo.closed ? escAdminHtml(closedInfo.reason) : ''}"
-                                    class="relative border-r border-slate-200 last:border-r-0 p-1 space-y-1 ${cellBgClass}">
+                                <div title="${escAdminHtml(cellTitle)}" ${cellClickAttr}
+                                    class="relative border-r border-slate-200 last:border-r-0 p-1 space-y-1 ${isInteractiveCell ? 'cursor-pointer' : ''} ${cellBgClass}">
                                     ${showNowLine ? `
                                         <div class="absolute left-0 right-0 z-10 pointer-events-none flex items-center" style="top:${nowTopPercent}%;">
                                             <span class="w-2 h-2 rounded-full bg-rose-500 -ml-1"></span>
@@ -1706,6 +1896,8 @@
                                         </div>
                                     ` : ""}
                                     ${eventsHtml}
+                                    ${manualClosedCardHtml}
+                                    ${openHoverHintHtml}
                                 </div>
                             `;
                         }).join("")}
@@ -1714,6 +1906,248 @@
             }
 
             gridEl.innerHTML = html;
+        }
+
+        // ==========================================
+        // 週行事曆：點擊時段格「手動關閉 / 編輯 / 重新開放時段」視窗邏輯
+        // ==========================================
+        function buildSlotModalTimeSelectOptions(startHour, endHour, selectedVal) {
+            let html = "";
+            for (let h = startHour; h <= endHour; h++) {
+                const t = String(h).padStart(2, "0") + ":00";
+                html += `<option value="${t}" ${t === selectedVal ? "selected" : ""}>${t}</option>`;
+            }
+            return html;
+        }
+
+        function toggleSlotModalScopeUI() {
+            const isFull = document.getElementById("slotModalScopeFull")?.checked;
+            const timeBox = document.getElementById("slotModalTimeRangeBox");
+            const lblPartial = document.getElementById("slotModeLabelPartial");
+            const lblFull = document.getElementById("slotModeLabelFull");
+            if (timeBox) timeBox.classList.toggle("hidden", Boolean(isFull));
+            if (lblPartial && lblFull) {
+                if (isFull) {
+                    lblFull.className = "flex items-center gap-2 p-2.5 rounded-xl border-2 border-[#253e42] bg-slate-50 cursor-pointer text-xs font-bold text-slate-800";
+                    lblPartial.className = "flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer text-xs font-bold text-slate-600";
+                } else {
+                    lblPartial.className = "flex items-center gap-2 p-2.5 rounded-xl border-2 border-[#253e42] bg-slate-50 cursor-pointer text-xs font-bold text-slate-800";
+                    lblFull.className = "flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer text-xs font-bold text-slate-600";
+                }
+            }
+        }
+
+        function onSlotModalStartChange() {
+            const startSel = document.getElementById("slotModalStartTime");
+            const endSel = document.getElementById("slotModalEndTime");
+            if (!startSel || !endSel) return;
+            const startH = parseInt(startSel.value.split(":")[0], 10);
+            const curEndH = parseInt(endSel.value.split(":")[0], 10);
+            const nextEndH = (!isNaN(curEndH) && curEndH > startH) ? curEndH : Math.min(22, startH + 1);
+            endSel.innerHTML = buildSlotModalTimeSelectOptions(startH + 1, 22, String(nextEndH).padStart(2, "0") + ":00");
+        }
+
+        function setSlotQuickReason(text) {
+            const el = document.getElementById("slotModalReason");
+            if (el) el.value = text;
+        }
+
+        function openCalendarSlotModal(dateStr, hourInt, holidayId) {
+            hideCalendarHoverCard();
+            const modal = document.getElementById("calendarSlotClosureModal");
+            if (!modal) return;
+
+            const targetDate = dateStr || formatYMD(new Date());
+            const targetHour = (hourInt !== undefined && hourInt !== null) ? Number(hourInt) : 15;
+            const defaultStart = String(targetHour).padStart(2, "0") + ":00";
+            const defaultEnd = String(Math.min(22, targetHour + 1)).padStart(2, "0") + ":00";
+
+            // 檢查是否為編輯既有之休假/關閉時段紀錄
+            let existingHoliday = null;
+            if (holidayId) {
+                existingHoliday = (adminData.holidays || []).find(h => Number(h.id) === Number(holidayId));
+            } else {
+                // 若未傳入 holidayId，自動檢查該日期+時段是否已有手動關閉紀錄
+                const pMins = targetHour * 60;
+                existingHoliday = (adminData.holidays || []).find(h => {
+                    const sD = normalizeDateYMD(h.start_date);
+                    const eD = normalizeDateYMD(h.end_date || h.start_date);
+                    if (targetDate < sD || targetDate > eD) return false;
+                    const isFull = Number(h.is_full_day) === 1 || h.is_full_day === true || String(h.is_full_day).toLowerCase() === "true" || !h.closed_start_time;
+                    if (isFull) return false;
+                    const ps = timeStrToMins(h.closed_start_time);
+                    const pe = timeStrToMins(h.closed_end_time);
+                    return ps >= 0 && pe > ps && pMins >= ps && pMins < pe;
+                });
+            }
+
+            const hidInput = document.getElementById("slotModalHolidayId");
+            const dateInput = document.getElementById("slotModalDate");
+            const reasonInput = document.getElementById("slotModalReason");
+            const startSel = document.getElementById("slotModalStartTime");
+            const endSel = document.getElementById("slotModalEndTime");
+            const radioPartial = document.getElementById("slotModalScopePartial");
+            const radioFull = document.getElementById("slotModalScopeFull");
+            const existingBanner = document.getElementById("slotModalExistingBanner");
+            const reopenBtn = document.getElementById("btnReopenSlotClosure");
+            const saveBtn = document.getElementById("btnSaveSlotClosure");
+            const headerEl = document.getElementById("slotModalHeader");
+            const badgeEl = document.getElementById("slotModalStatusBadge");
+            const titleEl = document.getElementById("slotModalTitle");
+            const warnEl = document.getElementById("slotModalBookingWarning");
+
+            if (existingHoliday) {
+                const isFull = Number(existingHoliday.is_full_day) === 1 || existingHoliday.is_full_day === true || String(existingHoliday.is_full_day).toLowerCase() === "true" || !existingHoliday.closed_start_time;
+                hidInput.value = existingHoliday.id;
+                dateInput.value = normalizeDateYMD(existingHoliday.start_date);
+                reasonInput.value = existingHoliday.reason || "其他事項安排";
+                radioFull.checked = isFull;
+                radioPartial.checked = !isFull;
+
+                const sTime = existingHoliday.closed_start_time || defaultStart;
+                const eTime = existingHoliday.closed_end_time || defaultEnd;
+                const sH = parseInt(sTime.split(":")[0], 10) || targetHour;
+                startSel.innerHTML = buildSlotModalTimeSelectOptions(8, 21, sTime);
+                endSel.innerHTML = buildSlotModalTimeSelectOptions(sH + 1, 22, eTime);
+
+                existingBanner.classList.remove("hidden");
+                reopenBtn.classList.remove("hidden");
+                headerEl.className = "px-5 py-4 bg-amber-700 text-white flex items-center justify-between";
+                badgeEl.textContent = "🔒 已手動關閉時段";
+                titleEl.textContent = isFull
+                    ? `${dateInput.value} 全天關閉`
+                    : `${dateInput.value} ${sTime} - ${eTime}`;
+                saveBtn.className = "flex-1 py-2.5 px-4 rounded-xl bg-[#253e42] hover:bg-[#1b2e31] text-white text-xs sm:text-sm font-extrabold shadow-xs transition flex items-center justify-center gap-1.5";
+                saveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> 儲存時段設定變更`;
+            } else {
+                hidInput.value = "";
+                dateInput.value = targetDate;
+                reasonInput.value = "其他事項安排";
+                radioPartial.checked = true;
+                radioFull.checked = false;
+
+                startSel.innerHTML = buildSlotModalTimeSelectOptions(8, 21, defaultStart);
+                endSel.innerHTML = buildSlotModalTimeSelectOptions(targetHour + 1, 22, defaultEnd);
+
+                existingBanner.classList.add("hidden");
+                reopenBtn.classList.add("hidden");
+                headerEl.className = "px-5 py-4 bg-[#253e42] text-white flex items-center justify-between";
+                badgeEl.textContent = "時段開放狀態設定";
+                titleEl.textContent = `${targetDate} ${defaultStart} - ${defaultEnd}`;
+                saveBtn.className = "flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-extrabold shadow-xs transition flex items-center justify-center gap-1.5";
+                saveBtn.innerHTML = `<i class="fa-solid fa-ban"></i> 確認關閉此時段`;
+            }
+
+            toggleSlotModalScopeUI();
+
+            // 檢查該時段是否已有客戶有效預約
+            const slotBookings = (bookingViewState.allBookings || []).filter(b => {
+                if (b.status === "cancelled" || b.booking_date !== dateInput.value) return false;
+                const bH = parseInt(String(b.booking_time || "10:00").split(":")[0], 10);
+                return bH === targetHour;
+            });
+            if (slotBookings.length > 0) {
+                warnEl.innerHTML = `<i class="fa-solid fa-circle-info text-sky-600 mr-1"></i>提醒：此時段目前已有 <strong>${slotBookings.length} 筆</strong>預約（${slotBookings.map(b => escAdminHtml(b.customer_name)).join("、")}）。關閉後前台將不再接受新預約；既有預約如需改期可點擊預約卡片直接修改時間。`;
+                warnEl.classList.remove("hidden");
+            } else {
+                warnEl.classList.add("hidden");
+            }
+
+            modal.classList.remove("hidden");
+        }
+
+        function closeCalendarSlotModal() {
+            const modal = document.getElementById("calendarSlotClosureModal");
+            if (modal) modal.classList.add("hidden");
+        }
+
+        async function saveCalendarSlotClosure() {
+            const editingId = document.getElementById("slotModalHolidayId")?.value || "";
+            const dateVal = document.getElementById("slotModalDate")?.value || "";
+            const isFull = Boolean(document.getElementById("slotModalScopeFull")?.checked);
+            const startTime = document.getElementById("slotModalStartTime")?.value || "15:00";
+            const endTime = document.getElementById("slotModalEndTime")?.value || "16:00";
+            const reason = (document.getElementById("slotModalReason")?.value || "").trim() || "其他事項安排";
+
+            if (!dateVal) {
+                alert("請選擇日期");
+                return;
+            }
+            if (!isFull && timeStrToMins(endTime) <= timeStrToMins(startTime)) {
+                alert("結束時間必須晚於開始時間");
+                return;
+            }
+
+            const btn = document.getElementById("btnSaveSlotClosure");
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> 處理中...`;
+            }
+
+            try {
+                // 若為編輯既有紀錄，先移除舊紀錄再建立更新後的設定
+                if (editingId) {
+                    await fetch(`/api/admin/holidays/${editingId}`, { method: "DELETE" });
+                }
+
+                const payload = {
+                    start_date: dateVal,
+                    end_date: dateVal,
+                    reason: reason,
+                    is_full_day: isFull,
+                    closed_start_time: isFull ? "" : startTime,
+                    closed_end_time: isFull ? "" : endTime
+                };
+                const res = await fetch("/api/admin/holidays", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeCalendarSlotModal();
+                    showToast(isFull
+                        ? `已手動關閉 ${dateVal} 全天預約！`
+                        : `已手動關閉 ${dateVal} ${startTime}~${endTime}（${reason}）！`);
+                    await loadAdminOverview();
+                } else {
+                    alert(data.error || "儲存失敗");
+                }
+            } catch (err) {
+                alert("儲存時發生錯誤，請稍後再試");
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function reopenCalendarSlotClosure() {
+            const editingId = document.getElementById("slotModalHolidayId")?.value || "";
+            if (!editingId) return;
+
+            const btn = document.getElementById("btnReopenSlotClosure");
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> 正在重新開放...`;
+            }
+
+            try {
+                const res = await fetch(`/api/admin/holidays/${editingId}`, { method: "DELETE" });
+                const data = await res.json();
+                if (data.ok) {
+                    closeCalendarSlotModal();
+                    showToast("已重新開放此時段，前台已恢復可預約狀態！");
+                    await loadAdminOverview();
+                } else {
+                    alert(data.error || "解除關閉失敗");
+                }
+            } catch (err) {
+                alert("解除關閉時發生錯誤");
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-lock-open"></i> 🔓 重新開放此時段（解除關閉，恢復客戶預約）`;
+                }
+            }
         }
 
         function buildBookingDetailHtml(b) {
