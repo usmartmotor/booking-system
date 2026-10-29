@@ -138,9 +138,12 @@
              ADMIN TAB 1: 預約訂單管理 (Bookings)
              ========================================== -->
         <section id="adminSection-bookings" class="space-y-5">
-            <!-- Quick Stats -->
+            <!-- Quick Stats (滑鼠移入即可預覽該類別所有預約明細) -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                <div onmouseenter="showStatHoverPopover('today', this)"
+                     onmouseleave="scheduleHideStatHoverPopover()"
+                     onclick="showStatHoverPopover('today', this)"
+                     class="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-sky-400 hover:shadow-md shadow-2xs flex items-center justify-between cursor-pointer transition select-none">
                     <div>
                         <div class="text-xs text-slate-500 font-medium">今日預約筆數</div>
                         <div id="statTodayCount" class="text-2xl font-extrabold text-slate-900 mt-1">0</div>
@@ -149,7 +152,10 @@
                         <i class="fa-solid fa-calendar-day"></i>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                <div onmouseenter="showStatHoverPopover('upcoming', this)"
+                     onmouseleave="scheduleHideStatHoverPopover()"
+                     onclick="showStatHoverPopover('upcoming', this)"
+                     class="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-emerald-400 hover:shadow-md shadow-2xs flex items-center justify-between cursor-pointer transition select-none">
                     <div>
                         <div class="text-xs text-slate-500 font-medium">待執行有效預約</div>
                         <div id="statUpcomingCount" class="text-2xl font-extrabold text-emerald-600 mt-1">0</div>
@@ -158,7 +164,10 @@
                         <i class="fa-solid fa-clock"></i>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                <div onmouseenter="showStatHoverPopover('maintenance', this)"
+                     onmouseleave="scheduleHideStatHoverPopover()"
+                     onclick="showStatHoverPopover('maintenance', this)"
+                     class="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-sky-400 hover:shadow-md shadow-2xs flex items-center justify-between cursor-pointer transition select-none">
                     <div>
                         <div class="text-xs text-slate-500 font-medium">維修保養預約</div>
                         <div id="statMaintCount" class="text-2xl font-extrabold text-sky-700 mt-1">0</div>
@@ -167,7 +176,10 @@
                         <i class="fa-solid fa-screwdriver-wrench"></i>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                <div onmouseenter="showStatHoverPopover('test_ride', this)"
+                     onmouseleave="scheduleHideStatHoverPopover()"
+                     onclick="showStatHoverPopover('test_ride', this)"
+                     class="bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-teal-400 hover:shadow-md shadow-2xs flex items-center justify-between cursor-pointer transition select-none">
                     <div>
                         <div class="text-xs text-slate-500 font-medium">賞車試乘預約</div>
                         <div id="statTestRideCount" class="text-2xl font-extrabold text-teal-700 mt-1">0</div>
@@ -1370,6 +1382,22 @@
         </div>
     </div>
 
+    <!-- 預約訂單管理上方四大統計卡：滑鼠移入 (Hover) 預約明細浮動視窗 -->
+    <div id="statCardHoverPopover"
+        onmouseenter="cancelHideStatHoverPopover()"
+        onmouseleave="scheduleHideStatHoverPopover()"
+        class="fixed z-50 hidden w-[350px] sm:w-[390px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-xs">
+        <div id="statPopoverHeader" class="px-4 py-2.5 bg-[#253e42] text-white flex items-center justify-between">
+            <span id="statPopoverTitle" class="font-extrabold text-sm">今日預約筆數</span>
+            <span id="statPopoverBadge" class="font-bold text-[11px] bg-white/20 px-2 py-0.5 rounded-full">共 0 筆</span>
+        </div>
+        <div id="statPopoverBody" class="p-3 space-y-2 max-h-80 overflow-y-auto bg-white"></div>
+        <div id="statPopoverFooter" class="px-3.5 py-2 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+            <span><i class="fa-solid fa-hand-pointer text-sky-600 mr-1"></i>點擊任一筆可直接開啟詳情視窗</span>
+            <span class="text-[10px] text-slate-400">可滾動檢視</span>
+        </div>
+    </div>
+
     <!-- ==========================================
          Admin JavaScript Logic
          ========================================== -->
@@ -1551,12 +1579,213 @@
             const res = await fetch("/api/admin/bookings");
             const data = await res.json();
             if (!data.ok) return;
+            bookingViewState.loaded = true;
             bookingViewState.allBookings = data.bookings || [];
             bookingViewState.bookingsById = {};
             bookingViewState.allBookings.forEach(b => {
                 bookingViewState.bookingsById[b.id] = b;
             });
+            syncQuickStatCounts();
             renderCurrentBookingsView();
+        }
+
+        // ==========================================
+        // 上方四大統計卡片：鼠標指入 (Hover) 即時顯示該格預約明細
+        // ==========================================
+        let statPopoverHideTimer = null;
+
+        function formatStatDateWithWeekday(dateStr) {
+            const ymd = normalizeDateYMD(dateStr);
+            const parts = ymd.split("-").map(Number);
+            if (parts.length !== 3) return ymd;
+            const dObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            const wk = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"][dObj.getDay()] || "";
+            return `${ymd} (${wk})`;
+        }
+
+        function getStatCardBookings(statType) {
+            const todayStr = formatYMD(new Date());
+            const all = bookingViewState.allBookings || [];
+            let list = [];
+
+            if (statType === "today") {
+                list = all.filter(b => b.status !== "cancelled" && normalizeDateYMD(b.booking_date) === todayStr);
+                list.sort((a, b) => String(a.booking_time || "").localeCompare(String(b.booking_time || "")));
+            } else if (statType === "upcoming") {
+                list = all.filter(b => b.status === "confirmed" && normalizeDateYMD(b.booking_date) >= todayStr);
+                list.sort((a, b) => {
+                    const da = normalizeDateYMD(a.booking_date), db = normalizeDateYMD(b.booking_date);
+                    if (da !== db) return da.localeCompare(db);
+                    return String(a.booking_time || "").localeCompare(String(b.booking_time || ""));
+                });
+            } else if (statType === "maintenance") {
+                list = all.filter(b => b.status !== "cancelled" && b.form_type === "maintenance");
+                list.sort((a, b) => {
+                    const da = normalizeDateYMD(a.booking_date), db = normalizeDateYMD(b.booking_date);
+                    const aUp = da >= todayStr ? 0 : 1;
+                    const bUp = db >= todayStr ? 0 : 1;
+                    if (aUp !== bUp) return aUp - bUp;
+                    if (aUp === 0) {
+                        if (da !== db) return da.localeCompare(db);
+                        return String(a.booking_time || "").localeCompare(String(b.booking_time || ""));
+                    } else {
+                        if (da !== db) return db.localeCompare(da);
+                        return String(b.booking_time || "").localeCompare(String(a.booking_time || ""));
+                    }
+                });
+            } else if (statType === "test_ride") {
+                list = all.filter(b => b.status !== "cancelled" && b.form_type === "test_ride");
+                list.sort((a, b) => {
+                    const da = normalizeDateYMD(a.booking_date), db = normalizeDateYMD(b.booking_date);
+                    const aUp = da >= todayStr ? 0 : 1;
+                    const bUp = db >= todayStr ? 0 : 1;
+                    if (aUp !== bUp) return aUp - bUp;
+                    if (aUp === 0) {
+                        if (da !== db) return da.localeCompare(db);
+                        return String(a.booking_time || "").localeCompare(String(b.booking_time || ""));
+                    } else {
+                        if (da !== db) return db.localeCompare(da);
+                        return String(b.booking_time || "").localeCompare(String(a.booking_time || ""));
+                    }
+                });
+            }
+            return list;
+        }
+
+        function syncQuickStatCounts() {
+            if (!bookingViewState.loaded) return;
+            document.getElementById("statTodayCount").textContent = getStatCardBookings("today").length;
+            document.getElementById("statUpcomingCount").textContent = getStatCardBookings("upcoming").length;
+            document.getElementById("statMaintCount").textContent = getStatCardBookings("maintenance").length;
+            document.getElementById("statTestRideCount").textContent = getStatCardBookings("test_ride").length;
+        }
+
+        function cancelHideStatHoverPopover() {
+            if (statPopoverHideTimer) {
+                clearTimeout(statPopoverHideTimer);
+                statPopoverHideTimer = null;
+            }
+        }
+
+        function scheduleHideStatHoverPopover() {
+            cancelHideStatHoverPopover();
+            statPopoverHideTimer = setTimeout(() => {
+                hideStatHoverPopoverNow();
+            }, 150);
+        }
+
+        function hideStatHoverPopoverNow() {
+            cancelHideStatHoverPopover();
+            const pop = document.getElementById("statCardHoverPopover");
+            if (pop) pop.classList.add("hidden");
+        }
+
+        window.addEventListener("scroll", hideStatHoverPopoverNow, { passive: true });
+
+        function showStatHoverPopover(statType, anchorEl) {
+            cancelHideStatHoverPopover();
+            hideCalendarHoverCard();
+
+            const pop = document.getElementById("statCardHoverPopover");
+            const headerEl = document.getElementById("statPopoverHeader");
+            const titleEl = document.getElementById("statPopoverTitle");
+            const badgeEl = document.getElementById("statPopoverBadge");
+            const bodyEl = document.getElementById("statPopoverBody");
+            const footerEl = document.getElementById("statPopoverFooter");
+            if (!pop || !anchorEl) return;
+
+            const metaMap = {
+                today:       { title: "📅 今日預約筆數",     headerBg: "bg-[#253e42]" },
+                upcoming:    { title: "🕒 待執行有效預約",   headerBg: "bg-emerald-700" },
+                maintenance: { title: "🔧 維修保養預約",     headerBg: "bg-sky-700" },
+                test_ride:   { title: "🏍️ 賞車試乘預約",     headerBg: "bg-teal-700" }
+            };
+            const meta = metaMap[statType] || metaMap.today;
+            const list = getStatCardBookings(statType);
+
+            headerEl.className = `px-4 py-2.5 text-white flex items-center justify-between ${meta.headerBg}`;
+            titleEl.textContent = meta.title;
+            badgeEl.textContent = `共 ${list.length} 筆`;
+
+            if (list.length === 0) {
+                bodyEl.innerHTML = `
+                    <div class="py-6 text-center text-slate-400 text-xs">
+                        目前尚無此類別的預約紀錄
+                    </div>
+                `;
+                footerEl.classList.add("hidden");
+            } else {
+                footerEl.classList.remove("hidden");
+                bodyEl.innerHTML = list.map((b, idx) => {
+                    const isMaint = b.form_type === "maintenance";
+                    const dtLabel = `${formatStatDateWithWeekday(b.booking_date)} ${b.booking_time || ""}`;
+                    const statusSuffix = b.status === "completed" ? "・已完成" : "";
+
+                    if (isMaint) {
+                        return `
+                            <div onclick="hideStatHoverPopoverNow(); openCalendarBookingModal(${b.id})"
+                                class="cursor-pointer p-2.5 rounded-xl border border-slate-200 hover:border-sky-400 bg-slate-50/80 hover:bg-sky-50/60 transition space-y-1.5">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                                        <span class="w-4 h-4 rounded-full bg-sky-600 text-white text-[10px] inline-flex items-center justify-center shrink-0">${idx + 1}</span>
+                                        <span>預約時間：${escAdminHtml(dtLabel)}</span>
+                                    </span>
+                                    <span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[10px] font-bold shrink-0">維修保養${statusSuffix}</span>
+                                </div>
+                                <div class="pl-5 space-y-1 text-xs">
+                                    <div class="text-slate-600">
+                                        車牌號碼：<strong class="font-mono text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200">${escAdminHtml(b.license_plate || "-")}</strong>
+                                    </div>
+                                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-slate-600">
+                                        <span>姓名：<strong class="text-slate-900">${escAdminHtml(b.customer_name || "-")}</strong></span>
+                                        <span>電話：<strong class="font-mono text-sky-700">${escAdminHtml(b.customer_phone || "-")}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <div onclick="hideStatHoverPopoverNow(); openCalendarBookingModal(${b.id})"
+                                class="cursor-pointer p-2.5 rounded-xl border border-slate-200 hover:border-emerald-400 bg-slate-50/80 hover:bg-emerald-50/60 transition space-y-1.5">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                                        <span class="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] inline-flex items-center justify-center shrink-0">${idx + 1}</span>
+                                        <span>預約時間：${escAdminHtml(dtLabel)}</span>
+                                    </span>
+                                    <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold shrink-0">賞車試乘${statusSuffix}</span>
+                                </div>
+                                <div class="pl-5 space-y-1 text-xs">
+                                    <div class="text-slate-600">
+                                        試乘車輛：<strong class="text-emerald-800 bg-white px-1.5 py-0.5 rounded border border-emerald-200">${escAdminHtml(b.test_ride_model || "-")}</strong>
+                                    </div>
+                                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-slate-600">
+                                        <span>姓名：<strong class="text-slate-900">${escAdminHtml(b.customer_name || "-")}</strong></span>
+                                        <span>電話：<strong class="font-mono text-sky-700">${escAdminHtml(b.customer_phone || "-")}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }).join("");
+            }
+
+            pop.classList.remove("hidden");
+
+            // 定位於被指向的統計卡片正下方，並自動避免超出螢幕右緣或下緣
+            const rect = anchorEl.getBoundingClientRect();
+            const popW = pop.offsetWidth || 380;
+            const popH = pop.offsetHeight || 240;
+            let left = rect.left;
+            let top = rect.bottom + 8;
+
+            if (left + popW > window.innerWidth - 12) {
+                left = Math.max(12, window.innerWidth - popW - 12);
+            }
+            if (top + popH > window.innerHeight - 12) {
+                top = Math.max(12, window.innerHeight - popH - 12);
+            }
+            pop.style.left = `${left}px`;
+            pop.style.top = `${top}px`;
         }
 
         function getFilteredAdminBookings(ignoreSingleDate) {
